@@ -1,7 +1,8 @@
 # Asset handoff
 
-The game currently draws polished placeholder art so that the full game and
-camera systems can be tested before the Figma exports arrive.
+The supplied title, backgrounds, characters, and collectibles are stored in
+assets/images and are loaded by the game. Obstacles still use generated
+placeholder art until their final PNG assets are provided.
 
 Export PNG files in sRGB. Use transparent backgrounds for characters,
 obstacles, collectibles, icons, and buttons. Keep every frame of one animation
@@ -33,4 +34,3 @@ Suggested animation counts:
 Individual PNG files are preferred for the first handoff. If using sprite
 sheets, use a single horizontal row with equally sized frames and no padding
 between frames. Do not export mockup backgrounds behind transparent sprites.
-

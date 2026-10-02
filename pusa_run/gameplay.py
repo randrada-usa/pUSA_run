@@ -4,6 +4,7 @@ import math
 import random
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
 import pygame
 
@@ -17,6 +18,9 @@ from .constants import (
     SHIELD_SECONDS,
 )
 from .difficulty import DifficultySnapshot, difficulty_at
+
+if TYPE_CHECKING:
+    from .assets import GameAssets
 
 
 class ObjectKind(str, Enum):
@@ -110,6 +114,7 @@ class RunnerWorld:
         self.collectible_score = 0
         self.spawn_timer = 1.35
         self.scroll_offset = 0.0
+        self.background_scroll = 0.0
         self.hit_slow_timer = 0.0
         self.game_over = False
         self.last_difficulty = difficulty_at(0.0)
@@ -135,6 +140,7 @@ class RunnerWorld:
         self.hit_slow_timer = max(0.0, self.hit_slow_timer - dt)
         speed = difficulty.scroll_speed * speed_factor
         self.scroll_offset = (self.scroll_offset + speed * dt) % 96.0
+        self.background_scroll += speed * dt
         self.distance += speed * dt / 22.0
 
         for item in self.objects:
@@ -190,38 +196,59 @@ class RunnerWorld:
                     self.collectible_score += 150
 
 
-def draw_world(surface: pygame.Surface, world: RunnerWorld, tracking_warning: str = "") -> None:
+def draw_world(
+    surface: pygame.Surface,
+    world: RunnerWorld,
+    tracking_warning: str = "",
+    assets: GameAssets | None = None,
+) -> None:
     width, height = surface.get_size()
-    surface.fill(COLORS["hall"])
+    if assets is not None:
+        loop = assets.gameplay_track
+        period = loop.get_height()
+        offset = int(world.background_scroll % period)
+        surface.blit(loop, (0, offset - period))
+        surface.blit(loop, (0, offset))
+    else:
+        surface.fill(COLORS["hall"])
+        road = pygame.Rect(310, 0, 660, height)
+        pygame.draw.rect(surface, COLORS["floor_dark"], road)
+        pygame.draw.rect(surface, COLORS["floor"], road.inflate(-20, 0))
 
-    road = pygame.Rect(310, 0, 660, height)
-    pygame.draw.rect(surface, COLORS["floor_dark"], road)
-    pygame.draw.rect(surface, COLORS["floor"], road.inflate(-20, 0))
+        for lane_x in (530, 750):
+            y = -96 + int(world.scroll_offset)
+            while y < height:
+                pygame.draw.rect(
+                    surface,
+                    (188, 208, 125),
+                    (lane_x - 3, y, 6, 44),
+                    border_radius=3,
+                )
+                y += 96
 
-    for lane_x in (530, 750):
-        y = -96 + int(world.scroll_offset)
-        while y < height:
-            pygame.draw.rect(surface, (188, 208, 125), (lane_x - 3, y, 6, 44), border_radius=3)
-            y += 96
-
-    for y in range(-80 + int(world.scroll_offset), height, 96):
-        pygame.draw.line(surface, (178, 139, 82), (0, y), (300, y), 3)
-        pygame.draw.line(surface, (178, 139, 82), (980, y), (width, y), 3)
+        for y in range(-80 + int(world.scroll_offset), height, 96):
+            pygame.draw.line(surface, (178, 139, 82), (0, y), (300, y), 3)
+            pygame.draw.line(surface, (178, 139, 82), (980, y), (width, y), 3)
 
     for item in sorted(world.objects, key=lambda entity: entity.y):
         if item.kind == ObjectKind.OBSTACLE:
             _draw_obstacle(surface, item)
         elif item.kind == ObjectKind.CAT_FOOD:
-            _draw_cat_food(surface, item)
+            _draw_cat_food(surface, item, assets)
         else:
-            _draw_fish(surface, item)
+            _draw_fish(surface, item, assets)
 
-    _draw_rat(surface, world)
-    _draw_player(surface, world.player, world.elapsed)
+    _draw_rat(surface, world, assets)
+    _draw_player(surface, world.player, world.elapsed, assets)
     _draw_hud(surface, world, tracking_warning)
 
 
-def _draw_player(surface: pygame.Surface, player: Player, elapsed: float) -> None:
+def _draw_player(
+    surface: pygame.Surface,
+    player: Player,
+    elapsed: float,
+    assets: GameAssets | None,
+) -> None:
     x = int(player.x)
     ground_y = PLAYER_Y + 48
     y = int(PLAYER_Y - player.jump_height)
@@ -233,6 +260,25 @@ def _draw_player(surface: pygame.Surface, player: Player, elapsed: float) -> Non
         return
     bob = int(math.sin(elapsed * 11.0) * 3) if player.jump_height <= 1 else 0
     y += bob
+    if assets is not None:
+        sprite = assets.player
+        sprite_rect = sprite.get_rect(midbottom=(x, y + 50))
+        surface.blit(sprite, sprite_rect)
+        if player.hurt_flash > 0:
+            flash = sprite.copy()
+            flash.fill((255, 80, 80, 100), special_flags=pygame.BLEND_RGBA_ADD)
+            surface.blit(flash, sprite_rect)
+        if player.shield_timer > 0:
+            radius = max(sprite_rect.width, sprite_rect.height) // 2 + 10
+            pygame.draw.circle(
+                surface,
+                (93, 210, 236),
+                sprite_rect.center,
+                radius,
+                4,
+            )
+        return
+
     body_color = (235, 137, 61) if player.hurt_flash <= 0 else COLORS["red"]
     pygame.draw.ellipse(surface, body_color, (x - 38, y - 24, 76, 72))
     pygame.draw.circle(surface, body_color, (x, y - 38), 42)
@@ -249,10 +295,18 @@ def _draw_player(surface: pygame.Surface, player: Player, elapsed: float) -> Non
         pygame.draw.circle(surface, (93, 210, 236), (x, y - 10), radius, 4)
 
 
-def _draw_rat(surface: pygame.Surface, world: RunnerWorld) -> None:
+def _draw_rat(
+    surface: pygame.Surface,
+    world: RunnerWorld,
+    assets: GameAssets | None,
+) -> None:
     health_lost = MAX_HEARTS - world.player.hearts
     rat_y = 705 - health_lost * 38
     x = int(world.player.x + 72)
+    if assets is not None:
+        sprite = assets.rat
+        surface.blit(sprite, sprite.get_rect(midbottom=(x, rat_y)))
+        return
     pygame.draw.ellipse(surface, (107, 105, 117), (x - 30, rat_y - 40, 60, 48))
     pygame.draw.circle(surface, (125, 123, 137), (x, rat_y - 48), 28)
     pygame.draw.circle(surface, (235, 158, 177), (x - 18, rat_y - 66), 10)
@@ -269,8 +323,18 @@ def _draw_obstacle(surface: pygame.Surface, item: TrackObject) -> None:
         pygame.draw.line(surface, (245, 218, 159), (rect.left + 12, rect.top + offset), (rect.right - 12, rect.top + offset), 5)
 
 
-def _draw_cat_food(surface: pygame.Surface, item: TrackObject) -> None:
+def _draw_cat_food(
+    surface: pygame.Surface,
+    item: TrackObject,
+    assets: GameAssets | None,
+) -> None:
     rect = item.rect
+    if assets is not None:
+        surface.blit(
+            assets.cat_food,
+            assets.cat_food.get_rect(center=rect.center),
+        )
+        return
     pygame.draw.ellipse(surface, (220, 149, 71), rect)
     pygame.draw.ellipse(surface, (245, 207, 129), rect.inflate(-10, -18))
     pygame.draw.circle(surface, COLORS["brown"], rect.center, 7)
@@ -278,8 +342,15 @@ def _draw_cat_food(surface: pygame.Surface, item: TrackObject) -> None:
     pygame.draw.circle(surface, COLORS["brown"], (rect.centerx + 14, rect.centery + 4), 5)
 
 
-def _draw_fish(surface: pygame.Surface, item: TrackObject) -> None:
+def _draw_fish(
+    surface: pygame.Surface,
+    item: TrackObject,
+    assets: GameAssets | None,
+) -> None:
     rect = item.rect
+    if assets is not None:
+        surface.blit(assets.fish, assets.fish.get_rect(center=rect.center))
+        return
     pygame.draw.ellipse(surface, (238, 124, 70), rect.inflate(-8, -18))
     pygame.draw.polygon(surface, (238, 124, 70), [(rect.left + 6, rect.centery), (rect.left - 12, rect.top + 7), (rect.left - 12, rect.bottom - 7)])
     pygame.draw.circle(surface, COLORS["dark"], (rect.right - 15, rect.centery - 5), 3)

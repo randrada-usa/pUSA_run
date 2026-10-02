@@ -15,6 +15,8 @@ $arguments = @(
     "pUSA Run"
     "--add-data"
     "models;models"
+    "--add-data"
+    "assets;assets"
     "--collect-all"
     "mediapipe"
     "run_game.py"
@@ -29,4 +31,3 @@ try {
 }
 
 Write-Host "Build complete: dist\pUSA Run\pUSA Run.exe"
-

@@ -5,10 +5,12 @@ The player moves their upper body left or right to change lanes and rises above
 a personalized jump line to make Pipin jump. Keyboard controls are always
 available.
 
-The current vertical slice uses placeholder art while retaining the full game
-loop: calibration, tutorial, increasing difficulty, obstacles, three hearts,
-the pursuing rat, Cat Food shields, Fish healing, scoring, high-score saving,
-camera selection, pause, retry, and fullscreen support.
+The current vertical slice integrates the supplied pixel-art menu, characters,
+collectibles, and campus track. Obstacles still use a temporary in-game crate
+until final obstacle art is available. The full loop includes calibration,
+tutorial, increasing difficulty, three hearts, the pursuing rat, Cat Food
+shields, Fish healing, scoring, high-score saving, camera selection, pause,
+retry, and fullscreen support.
 
 ## Requirements
 

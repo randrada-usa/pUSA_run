@@ -13,7 +13,7 @@ os.environ["APPDATA"] = str(PROJECT_ROOT / "tmp" / "smoke-profile")
 import pygame
 
 from pusa_run.app import GameApp, Screen
-from pusa_run.gameplay import RunnerWorld, draw_world
+from pusa_run.gameplay import ObjectKind, RunnerWorld, TrackObject, draw_world
 from pusa_run.pose_controller import PoseSnapshot
 
 
@@ -27,9 +27,16 @@ def main() -> None:
         pygame.image.save(app.canvas, output / "menu.png")
 
         world = RunnerWorld(seed=12)
-        for _ in range(360):
-            world.update(1 / 60)
-        draw_world(app.canvas, world, "")
+        world.elapsed = 18.0
+        world.distance = 640.0
+        world.background_scroll = 310.0
+        world.spawn_timer = 99.0
+        world.objects = [
+            TrackObject(ObjectKind.FISH, 0, 250.0, 68),
+            TrackObject(ObjectKind.OBSTACLE, 1, 245.0, 92),
+            TrackObject(ObjectKind.CAT_FOOD, 2, 250.0, 72),
+        ]
+        draw_world(app.canvas, world, "", app.assets)
         pygame.image.save(app.canvas, output / "gameplay.png")
 
         app.screen = Screen.CALIBRATION

@@ -11,6 +11,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame
 
 from .actions import Action, InputEvent
+from .assets import GameAssets
 from .constants import COLORS, FPS, GAME_TITLE, LOGICAL_HEIGHT, LOGICAL_SIZE, LOGICAL_WIDTH
 from .gameplay import ObjectKind, RunnerWorld, TrackObject, draw_world
 from .pose_controller import CalibrationStatus, PoseController, PoseSnapshot
@@ -56,6 +57,8 @@ class GameApp:
         self.preferences: Preferences = self.store.load()
         self.fullscreen = self.preferences.fullscreen
         self.display = self._create_display()
+        self.assets = GameAssets()
+        pygame.display.set_icon(self.assets.app_icon)
         self.canvas = pygame.Surface(LOGICAL_SIZE)
         self.clock = pygame.time.Clock()
         self.font_large = pygame.font.Font(None, 86)
@@ -416,12 +419,17 @@ class GameApp:
         elif self.screen == Screen.TUTORIAL:
             self._draw_tutorial()
         elif self.screen == Screen.PLAYING:
-            draw_world(self.canvas, self.world, self._tracking_warning(pose))
+            draw_world(
+                self.canvas,
+                self.world,
+                self._tracking_warning(pose),
+                self.assets,
+            )
         elif self.screen == Screen.PAUSED:
-            draw_world(self.canvas, self.world, "")
+            draw_world(self.canvas, self.world, "", self.assets)
             self._draw_overlay("PAUSED", self._pause_buttons(), mouse)
         elif self.screen == Screen.GAME_OVER:
-            draw_world(self.canvas, self.world, "")
+            draw_world(self.canvas, self.world, "", self.assets)
             self._draw_game_over(mouse)
 
     def _draw_background(self) -> None:
@@ -462,17 +470,190 @@ class GameApp:
         )
 
     def _draw_menu(self, mouse: tuple[int, int]) -> None:
-        self._draw_background()
-        self._draw_logo()
+        self.canvas.blit(self.assets.main_background, (0, 0))
+        shade = pygame.Surface(LOGICAL_SIZE, pygame.SRCALPHA)
+        shade.fill((28, 19, 10, 28))
+        self.canvas.blit(shade, (0, 0))
+
+        title_rect = self.assets.title.get_rect(midtop=(640, 15))
+        self.canvas.blit(self.assets.title, title_rect)
+
+        tagline = self.font_small.render(
+            "RUN FAST. STAY PAWSITIVE.",
+            True,
+            (61, 38, 18),
+        )
+        tagline_box = tagline.get_rect(center=(640, 294)).inflate(44, 16)
+        pygame.draw.rect(
+            self.canvas,
+            (222, 179, 90),
+            tagline_box.move(0, 4),
+            border_radius=15,
+        )
+        pygame.draw.rect(
+            self.canvas,
+            (255, 235, 168),
+            tagline_box,
+            border_radius=15,
+        )
+        pygame.draw.rect(
+            self.canvas,
+            (80, 47, 20),
+            tagline_box,
+            3,
+            border_radius=15,
+        )
+        self.canvas.blit(tagline, tagline.get_rect(center=tagline_box.center))
+
+        self.canvas.blit(
+            self.assets.menu_pipin,
+            self.assets.menu_pipin.get_rect(midbottom=(190, 708)),
+        )
+        self.canvas.blit(
+            self.assets.menu_rat,
+            self.assets.menu_rat.get_rect(midbottom=(1088, 710)),
+        )
+
         for button in self._menu_buttons():
-            button.draw(self.canvas, self.font_medium, mouse)
-        high = self.font_small.render(
-            f"HIGH SCORE  {self.preferences.high_score:06d}",
+            self._draw_menu_button(button, mouse)
+
+        self._draw_high_score_panel()
+        self._draw_camera_badge(self.camera.snapshot())
+
+    def _draw_menu_button(
+        self,
+        button: Button,
+        mouse: tuple[int, int],
+    ) -> None:
+        hovered = button.rect.collidepoint(mouse)
+        is_play = button.action == "play"
+        face = (255, 180, 32) if is_play else (250, 220, 163)
+        if hovered:
+            face = tuple(min(255, channel + 14) for channel in face)
+
+        pygame.draw.rect(
+            self.canvas,
+            (69, 39, 19),
+            button.rect.move(0, 8),
+            border_radius=14,
+        )
+        pygame.draw.rect(
+            self.canvas,
+            face,
+            button.rect,
+            border_radius=14,
+        )
+        pygame.draw.rect(
+            self.canvas,
+            (83, 49, 22),
+            button.rect,
+            4,
+            border_radius=14,
+        )
+
+        icon_center = (button.rect.left + 48, button.rect.centery)
+        icon_color = (79, 48, 25)
+        if button.action == "play":
+            pygame.draw.circle(self.canvas, icon_color, icon_center, 12)
+            for dx, dy in ((-13, -17), (-4, -23), (7, -22), (16, -13)):
+                pygame.draw.circle(
+                    self.canvas,
+                    icon_color,
+                    (icon_center[0] + dx, icon_center[1] + dy),
+                    6,
+                )
+        elif button.action == "settings":
+            pygame.draw.circle(self.canvas, icon_color, icon_center, 18, 7)
+            pygame.draw.circle(self.canvas, icon_color, icon_center, 5)
+            for angle in range(0, 360, 45):
+                direction = pygame.Vector2(0, -25).rotate(angle)
+                end = pygame.Vector2(icon_center) + direction
+                pygame.draw.line(
+                    self.canvas,
+                    icon_color,
+                    icon_center,
+                    end,
+                    7,
+                )
+        else:
+            door = pygame.Rect(0, 0, 25, 34)
+            door.center = icon_center
+            pygame.draw.rect(self.canvas, icon_color, door, 5)
+            pygame.draw.circle(
+                self.canvas,
+                icon_color,
+                (door.right - 7, door.centery),
+                3,
+            )
+            pygame.draw.line(
+                self.canvas,
+                icon_color,
+                (door.right + 2, door.centery),
+                (door.right + 17, door.centery),
+                5,
+            )
+
+        label = self.font_medium.render(button.label, True, (50, 32, 21))
+        self.canvas.blit(
+            label,
+            label.get_rect(
+                center=(button.rect.centerx + 22, button.rect.centery)
+            ),
+        )
+
+    def _draw_high_score_panel(self) -> None:
+        panel = pygame.Rect(1005, 24, 245, 96)
+        pygame.draw.rect(
+            self.canvas,
+            (55, 31, 15),
+            panel.move(0, 6),
+            border_radius=13,
+        )
+        pygame.draw.rect(
+            self.canvas,
+            (45, 31, 24),
+            panel,
+            border_radius=13,
+        )
+        pygame.draw.rect(
+            self.canvas,
+            (244, 173, 31),
+            panel,
+            4,
+            border_radius=13,
+        )
+        trophy = (panel.left + 37, panel.centery + 6)
+        pygame.draw.ellipse(
+            self.canvas,
+            (255, 194, 30),
+            (trophy[0] - 13, trophy[1] - 27, 26, 30),
+        )
+        pygame.draw.line(
+            self.canvas,
+            (255, 194, 30),
+            (trophy[0], trophy[1]),
+            (trophy[0], trophy[1] + 17),
+            6,
+        )
+        pygame.draw.line(
+            self.canvas,
+            (255, 194, 30),
+            (trophy[0] - 12, trophy[1] + 18),
+            (trophy[0] + 12, trophy[1] + 18),
+            5,
+        )
+        label = pygame.font.Font(None, 25).render(
+            "HIGH SCORE",
             True,
             COLORS["white"],
         )
-        self.canvas.blit(high, high.get_rect(center=(640, 672)))
-        self._draw_camera_badge(self.camera.snapshot())
+        score = self.font_medium.render(
+            f"{self.preferences.high_score:,}",
+            True,
+            (255, 187, 27),
+        )
+        self.canvas.blit(label, (panel.left + 76, panel.top + 13))
+        self.canvas.blit(score, (panel.left + 76, panel.top + 43))
 
     def _draw_settings(
         self, pose: PoseSnapshot, mouse: tuple[int, int]
@@ -552,7 +733,12 @@ class GameApp:
             self.tutorial_world.objects.append(
                 TrackObject(ObjectKind.OBSTACLE, 1, 500.0, 92)
             )
-        draw_world(self.canvas, self.tutorial_world, "TUTORIAL")
+        draw_world(
+            self.canvas,
+            self.tutorial_world,
+            "TUTORIAL",
+            self.assets,
+        )
         labels = ["MOVE LEFT", "MOVE RIGHT", "JUMP OVER THE OBSTACLE"]
         message = (
             "READY!"
@@ -611,7 +797,7 @@ class GameApp:
             label = "CAMERA NEEDS CALIBRATION"
             color = COLORS["orange"]
         rendered = self.font_small.render(label, True, COLORS["white"])
-        box = rendered.get_rect(topleft=(24, 22)).inflate(20, 12)
+        box = rendered.get_rect(bottomleft=(20, 704)).inflate(20, 12)
         pygame.draw.rect(self.canvas, color, box, border_radius=9)
         self.canvas.blit(rendered, rendered.get_rect(center=box.center))
 
