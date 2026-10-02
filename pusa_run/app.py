@@ -172,7 +172,7 @@ class GameApp:
 
     def _menu_buttons(self) -> list[Button]:
         return [
-            Button("PLAY", pygame.Rect(490, 510, 300, 96), "play"),
+            Button("PLAY", pygame.Rect(525, 510, 230, 96), "play"),
             Button("EXIT", pygame.Rect(18, 18, 76, 76), "exit"),
             Button("SETTINGS", pygame.Rect(18, 102, 76, 76), "settings"),
         ]
@@ -525,7 +525,7 @@ class GameApp:
         self.canvas.blit(panel, panel_rect)
 
         value = f"{self.preferences.high_score:,}"
-        score_font = fitted_ui_font(value, 177, 37)
+        score_font = fitted_ui_font(value, 177, 28)
         score = score_font.render(value, False, (255, 187, 27))
         self.canvas.blit(
             score,

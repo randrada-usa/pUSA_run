@@ -130,7 +130,7 @@ class GameAssets:
 
         self.menu_buttons: dict[str, dict[str, pygame.Surface]] = {}
         target_widths = {
-            "play": 270,
+            "play": 230,
             "settings": 210,
             "exit": 210,
         }
