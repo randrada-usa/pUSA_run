@@ -94,4 +94,3 @@ class GameAssets:
             _crop_alpha(_load("catfood_item.png")),
             72,
         )
-
