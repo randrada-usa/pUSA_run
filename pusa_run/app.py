@@ -75,7 +75,11 @@ class GameApp:
         )
         self.camera.start()
         self.keyboard_only = False
-        self.tutorial_actions = [Action.MOVE_LEFT, Action.MOVE_RIGHT, Action.JUMP]
+        self.tutorial_actions = [
+            {Action.MOVE_LEFT, Action.LANE_LEFT},
+            {Action.MOVE_RIGHT, Action.LANE_RIGHT},
+            {Action.JUMP},
+        ]
         self.tutorial_index = 0
         self.tutorial_world = RunnerWorld(seed=7)
         self.tutorial_done_timer = 0.0
@@ -287,7 +291,7 @@ class GameApp:
             expected = self.tutorial_actions[self.tutorial_index]
             for item in actions:
                 self.tutorial_world.apply_action(item.action)
-                if item.action == expected:
+                if item.action in expected:
                     self.tutorial_index += 1
                     if self.tutorial_index == 2:
                         self.tutorial_world.player.lane = 1

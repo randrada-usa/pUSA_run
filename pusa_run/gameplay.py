@@ -63,6 +63,12 @@ class Player:
             self.lane = max(0, self.lane - 1)
         elif action == Action.MOVE_RIGHT:
             self.lane = min(2, self.lane + 1)
+        elif action == Action.LANE_LEFT:
+            self.lane = 0
+        elif action == Action.LANE_CENTER:
+            self.lane = 1
+        elif action == Action.LANE_RIGHT:
+            self.lane = 2
         elif action == Action.JUMP and self.jump_height <= 1.0:
             self.jump_velocity = 720.0
 
@@ -306,4 +312,3 @@ def _draw_heart(surface: pygame.Surface, x: int, y: int, color: tuple[int, int, 
     pygame.draw.circle(surface, color, (x - 9, y), 12)
     pygame.draw.circle(surface, color, (x + 9, y), 12)
     pygame.draw.polygon(surface, color, [(x - 21, y + 4), (x + 21, y + 4), (x, y + 29)])
-

@@ -72,10 +72,9 @@ class PoseController:
         self._camera_switch: queue.SimpleQueue[int] = queue.SimpleQueue()
 
         self._neutral_samples: list[tuple[float, float, float, float]] = []
-        self._lane_armed = True
+        self._last_zone: int | None = None
         self._jump_armed = True
         self._jump_frames = 0
-        self._last_lane_action = 0.0
 
     @property
     def running(self) -> bool:
@@ -129,7 +128,7 @@ class PoseController:
 
     def _reset_calibration(self) -> None:
         self._neutral_samples.clear()
-        self._lane_armed = True
+        self._last_zone = None
         self._jump_armed = True
         self._jump_frames = 0
         self._update_snapshot(
@@ -306,20 +305,32 @@ class PoseController:
 
         action_text = "CENTER"
         delta_x = shoulder_x - snapshot.neutral_x
-        reset_band = snapshot.lane_threshold * 0.45
-        if abs(delta_x) <= reset_band:
-            self._lane_armed = True
-        elif self._lane_armed and now - self._last_lane_action >= 0.28:
-            if delta_x <= -snapshot.lane_threshold:
-                self._emit(Action.MOVE_LEFT, now)
-                action_text = "LEFT"
-                self._lane_armed = False
-                self._last_lane_action = now
-            elif delta_x >= snapshot.lane_threshold:
-                self._emit(Action.MOVE_RIGHT, now)
-                action_text = "RIGHT"
-                self._lane_armed = False
-                self._last_lane_action = now
+        threshold = snapshot.lane_threshold
+        # Hysteresis keeps natural body sway from flickering across a boundary.
+        if self._last_zone == 0 and delta_x <= -(threshold * 0.72):
+            zone = 0
+            zone_action = Action.LANE_LEFT
+            action_text = "LEFT LANE"
+        elif self._last_zone == 2 and delta_x >= threshold * 0.72:
+            zone = 2
+            zone_action = Action.LANE_RIGHT
+            action_text = "RIGHT LANE"
+        elif delta_x <= -threshold:
+            zone = 0
+            zone_action = Action.LANE_LEFT
+            action_text = "LEFT LANE"
+        elif delta_x >= threshold:
+            zone = 2
+            zone_action = Action.LANE_RIGHT
+            action_text = "RIGHT LANE"
+        else:
+            zone = 1
+            zone_action = Action.LANE_CENTER
+            action_text = "MIDDLE LANE"
+
+        if zone != self._last_zone:
+            self._emit(zone_action, now)
+            self._last_zone = zone
 
         if shoulder_y < snapshot.jump_threshold:
             self._jump_frames += 1
@@ -382,4 +393,3 @@ class PoseController:
             status = f"{snapshot.calibration.value} {int(snapshot.calibration_progress * 100)}%"
         cv2.putText(frame, status, (16, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(frame, "F2 hides this window", (16, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (210, 210, 210), 1, cv2.LINE_AA)
-

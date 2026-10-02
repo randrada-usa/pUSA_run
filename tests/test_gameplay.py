@@ -35,6 +35,15 @@ class PlayerTests(unittest.TestCase):
             world.apply_action(Action.MOVE_RIGHT)
         self.assertEqual(world.player.lane, 2)
 
+    def test_absolute_camera_lanes(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.apply_action(Action.LANE_LEFT)
+        self.assertEqual(world.player.lane, 0)
+        world.apply_action(Action.LANE_RIGHT)
+        self.assertEqual(world.player.lane, 2)
+        world.apply_action(Action.LANE_CENTER)
+        self.assertEqual(world.player.lane, 1)
+
     def test_jump_leaves_and_returns_to_ground(self) -> None:
         world = RunnerWorld(seed=1)
         world.apply_action(Action.JUMP)
@@ -114,4 +123,3 @@ class SaveTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

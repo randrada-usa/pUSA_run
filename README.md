@@ -39,15 +39,17 @@ models so the game does not need internet access while running.
 
 | Action | Body control | Keyboard |
 | --- | --- | --- |
-| Move left | Lean or step past the left threshold | A or Left Arrow |
-| Move right | Lean or step past the right threshold | D or Right Arrow |
+| Left lane | Move into the left camera zone | A or Left Arrow |
+| Middle lane | Return to the middle camera zone | Use A/D or arrows |
+| Right lane | Move into the right camera zone | D or Right Arrow |
 | Jump | Raise shoulders above the calibrated line | Space, W, or Up Arrow |
 | Pause | - | Escape |
 | Camera window | - | F2 |
 | Fullscreen | - | F11 |
 
-Return near the calibrated center after each lane gesture before making another
-lane change in the same direction.
+Camera movement maps directly to lanes: left zone selects the left lane, middle
+zone selects the middle lane, and right zone selects the right lane. The player
+does not need to return to the middle before selecting another lane.
 
 ## Camera behavior
 
@@ -72,4 +74,3 @@ and tested on their respective operating systems.
 ## Figma asset handoff
 
 See assets/README.md for exact sizes, formats, and animation-frame guidance.
-

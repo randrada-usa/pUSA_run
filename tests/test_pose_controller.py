@@ -34,18 +34,23 @@ class PoseControllerTests(unittest.TestCase):
             lane_threshold=0.07,
             jump_threshold=0.31,
         )
+        self.controller._last_zone = 1
 
-    def test_left_requires_neutral_reset(self) -> None:
+    def test_camera_zones_map_to_absolute_lanes(self) -> None:
         self.controller._process_landmarks(pose(0.40, 0.36))
         first = self.controller.poll_actions()
-        self.assertEqual([event.action for event in first], [Action.MOVE_LEFT])
+        self.assertEqual([event.action for event in first], [Action.LANE_LEFT])
+
         self.controller._process_landmarks(pose(0.40, 0.36))
         self.assertEqual(self.controller.poll_actions(), [])
+
         self.controller._process_landmarks(pose(0.50, 0.36))
-        self.controller._last_lane_action = 0
-        self.controller._process_landmarks(pose(0.40, 0.36))
-        second = self.controller.poll_actions()
-        self.assertEqual([event.action for event in second], [Action.MOVE_LEFT])
+        middle = self.controller.poll_actions()
+        self.assertEqual([event.action for event in middle], [Action.LANE_CENTER])
+
+        self.controller._process_landmarks(pose(0.61, 0.36))
+        right = self.controller.poll_actions()
+        self.assertEqual([event.action for event in right], [Action.LANE_RIGHT])
 
     def test_jump_requires_two_frames_and_resets(self) -> None:
         self.controller._process_landmarks(pose(0.5, 0.28))
@@ -68,4 +73,3 @@ class PoseControllerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
