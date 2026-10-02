@@ -14,6 +14,16 @@ from pusa_run.save_data import Preferences, SaveStore
 
 
 class DifficultyTests(unittest.TestCase):
+    def test_tier_increases_every_ten_seconds(self) -> None:
+        for tier in range(1, 25):
+            self.assertEqual(difficulty_at(tier * 10 - 0.01).tier, tier - 1)
+            self.assertEqual(difficulty_at(tier * 10).tier, tier)
+            self.assertGreater(
+                difficulty_at(tier * 10).scroll_speed,
+                difficulty_at(tier * 10 - 0.01).scroll_speed,
+            )
+        self.assertEqual(difficulty_at(250).tier, 24)
+
     def test_curve_rises_and_caps(self) -> None:
         start = difficulty_at(0)
         middle = difficulty_at(120)
