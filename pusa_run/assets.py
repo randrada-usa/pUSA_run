@@ -97,7 +97,7 @@ class GameAssets:
         )
 
         track = scale_to_width(
-            _load("gameplay_hall.png"),
+            _load("palace_corridor.png"),
             LOGICAL_SIZE[0],
         )
         self.track_segment_height = track.get_height()
