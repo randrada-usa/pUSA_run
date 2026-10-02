@@ -170,9 +170,9 @@ class GameApp:
 
     def _menu_buttons(self) -> list[Button]:
         return [
-            Button("PLAY", pygame.Rect(490, 352, 300, 96), "play"),
-            Button("SETTINGS", pygame.Rect(500, 463, 280, 94), "settings"),
-            Button("EXIT", pygame.Rect(500, 573, 280, 94), "exit"),
+            Button("PLAY", pygame.Rect(490, 510, 300, 96), "play"),
+            Button("EXIT", pygame.Rect(18, 18, 76, 76), "exit"),
+            Button("SETTINGS", pygame.Rect(18, 102, 76, 76), "settings"),
         ]
 
     def _update_menu(
@@ -483,7 +483,7 @@ class GameApp:
             True,
             (61, 38, 18),
         )
-        tagline_box = tagline.get_rect(center=(640, 294)).inflate(44, 16)
+        tagline_box = tagline.get_rect(center=(640, 650)).inflate(44, 16)
         pygame.draw.rect(
             self.canvas,
             (222, 179, 90),
@@ -525,8 +525,21 @@ class GameApp:
         button: Button,
         mouse: tuple[int, int],
     ) -> None:
+        hovered = button.rect.collidepoint(mouse)
+        pressed = hovered and pygame.mouse.get_pressed(num_buttons=3)[0]
         image = self.assets.menu_buttons[button.action]["default"]
-        self.canvas.blit(image, image.get_rect(center=button.rect.center))
+        center = button.rect.center
+
+        if pressed:
+            image = pygame.transform.scale_by(image, 0.97)
+            image.fill((18, 18, 18, 0), special_flags=pygame.BLEND_RGB_SUB)
+            center = (center[0], center[1] + 3)
+        elif hovered:
+            image = pygame.transform.scale_by(image, 1.04)
+            image.fill((16, 16, 16, 0), special_flags=pygame.BLEND_RGB_ADD)
+            center = (center[0], center[1] - 1)
+
+        self.canvas.blit(image, image.get_rect(center=center))
 
     def _draw_high_score_panel(self) -> None:
         panel = pygame.Rect(1005, 24, 245, 96)

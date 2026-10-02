@@ -119,8 +119,8 @@ class GameAssets:
         self.menu_buttons: dict[str, dict[str, pygame.Surface]] = {}
         target_widths = {
             "play": 270,
-            "settings": 240,
-            "exit": 240,
+            "settings": 210,
+            "exit": 210,
         }
         for action in ("play", "settings", "exit"):
             source_states = {
@@ -138,3 +138,12 @@ class GameAssets:
                 state: scale_by(image, scale)
                 for state, image in source_states.items()
             }
+
+        self.menu_buttons["settings"]["default"] = scale_to_height(
+            _crop_alpha(_load_button("settings_icon_default.png")),
+            64,
+        )
+        self.menu_buttons["exit"]["default"] = scale_to_height(
+            _crop_alpha(_load_button("exit_icon_default.png")),
+            64,
+        )
