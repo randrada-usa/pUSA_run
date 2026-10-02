@@ -525,10 +525,7 @@ class GameApp:
         button: Button,
         mouse: tuple[int, int],
     ) -> None:
-        hovered = button.rect.collidepoint(mouse)
-        pressed = hovered and pygame.mouse.get_pressed(num_buttons=3)[0]
-        state = "pressed" if pressed else "hover" if hovered else "default"
-        image = self.assets.menu_buttons[button.action][state]
+        image = self.assets.menu_buttons[button.action]["default"]
         self.canvas.blit(image, image.get_rect(center=button.rect.center))
 
     def _draw_high_score_panel(self) -> None:
