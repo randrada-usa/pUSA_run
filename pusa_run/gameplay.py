@@ -18,6 +18,7 @@ from .constants import (
     SHIELD_SECONDS,
 )
 from .difficulty import DifficultySnapshot, difficulty_at
+from .fonts import fitted_ui_font, ui_font
 
 if TYPE_CHECKING:
     from .assets import GameAssets
@@ -357,13 +358,16 @@ def _draw_fish(
 
 
 def _draw_hud(surface: pygame.Surface, world: RunnerWorld, tracking_warning: str) -> None:
-    font = pygame.font.Font(None, 40)
-    small = pygame.font.Font(None, 28)
+    font = ui_font(20)
+    small = ui_font(16)
     pygame.draw.rect(surface, (31, 29, 43, 220), (24, 20, 270, 126), border_radius=14)
     for index in range(MAX_HEARTS):
         color = COLORS["red"] if index < world.player.hearts else (100, 91, 92)
         _draw_heart(surface, 55 + index * 55, 51, color)
-    score = font.render(f"Score  {world.score:06d}", True, COLORS["white"])
+    score_text = f"Score  {world.score:06d}"
+    score = fitted_ui_font(score_text, 230, 20).render(
+        score_text, True, COLORS["white"]
+    )
     surface.blit(score, (45, 94))
 
     difficulty = small.render(f"Speed tier {world.last_difficulty.tier + 1}", True, COLORS["cream"])
@@ -373,7 +377,9 @@ def _draw_hud(surface: pygame.Surface, world: RunnerWorld, tracking_warning: str
         surface.blit(shield, (1020, 63))
 
     if tracking_warning:
-        warning = font.render(tracking_warning, True, COLORS["white"])
+        warning = fitted_ui_font(tracking_warning, 1120, 20).render(
+            tracking_warning, True, COLORS["white"]
+        )
         box = warning.get_rect(center=(640, 88)).inflate(34, 22)
         pygame.draw.rect(surface, COLORS["rust"], box, border_radius=12)
         surface.blit(warning, warning.get_rect(center=box.center))

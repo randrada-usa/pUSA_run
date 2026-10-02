@@ -23,6 +23,7 @@ def main() -> None:
     with patch("pusa_run.pose_controller.PoseController.start"):
         app = GameApp()
     try:
+        app.preferences.high_score = 4_459
         app._draw_menu((-1, -1))
         pygame.image.save(app.canvas, output / "menu.png")
 
@@ -56,6 +57,15 @@ def main() -> None:
         )
         app._draw_calibration(pose, (-1, -1))
         pygame.image.save(app.canvas, output / "calibration.png")
+
+        app._draw_settings(PoseSnapshot(), (-1, -1))
+        pygame.image.save(app.canvas, output / "settings.png")
+
+        draw_world(app.canvas, world, "", app.assets)
+        app.final_score = 12_340
+        app.new_high_score = True
+        app._draw_game_over((-1, -1))
+        pygame.image.save(app.canvas, output / "game_over.png")
     finally:
         app.camera.stop()
         pygame.quit()

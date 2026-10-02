@@ -13,6 +13,7 @@ import pygame
 from .actions import Action, InputEvent
 from .assets import GameAssets
 from .constants import COLORS, FPS, GAME_TITLE, LOGICAL_HEIGHT, LOGICAL_SIZE, LOGICAL_WIDTH
+from .fonts import fitted_ui_font, ui_font
 from .gameplay import ObjectKind, RunnerWorld, TrackObject, draw_world
 from .pose_controller import CalibrationStatus, PoseController, PoseSnapshot
 from .save_data import Preferences, SaveStore
@@ -61,10 +62,10 @@ class GameApp:
         pygame.display.set_icon(self.assets.app_icon)
         self.canvas = pygame.Surface(LOGICAL_SIZE)
         self.clock = pygame.time.Clock()
-        self.font_large = pygame.font.Font(None, 86)
-        self.font_title = pygame.font.Font(None, 128)
-        self.font_medium = pygame.font.Font(None, 50)
-        self.font_small = pygame.font.Font(None, 31)
+        self.font_large = ui_font(55)
+        self.font_title = ui_font(70)
+        self.font_medium = ui_font(32)
+        self.font_small = ui_font(18)
 
         self.running = True
         self.screen = Screen.MENU
@@ -87,6 +88,7 @@ class GameApp:
         self.tutorial_world = RunnerWorld(seed=7)
         self.tutorial_done_timer = 0.0
         self.calibration_destination = Screen.TUTORIAL
+        self.calibration_return_screen = Screen.MENU
 
     def _create_display(self) -> pygame.Surface:
         flags = pygame.RESIZABLE
@@ -189,6 +191,7 @@ class GameApp:
                     if not self.preferences.tutorial_complete
                     else Screen.PLAYING
                 )
+                self.calibration_return_screen = Screen.MENU
                 self.camera.recalibrate()
                 self.screen = Screen.CALIBRATION
         elif action == "settings":
@@ -227,6 +230,7 @@ class GameApp:
             self.camera.set_window_visible(self.preferences.show_camera)
         elif action == "recalibrate":
             self.calibration_destination = self.previous_screen
+            self.calibration_return_screen = Screen.SETTINGS
             self.camera.recalibrate()
             self.screen = Screen.CALIBRATION
         elif action == "back":
@@ -235,9 +239,8 @@ class GameApp:
     def _calibration_buttons(self) -> list[Button]:
         return [
             Button(
-                "KEYBOARD ONLY", pygame.Rect(465, 535, 350, 66), "keyboard"
+                "KEYBOARD ONLY", pygame.Rect(475, 545, 330, 95), "keyboard"
             ),
-            Button("BACK", pygame.Rect(540, 622, 200, 54), "back"),
         ]
 
     def _update_calibration(
@@ -246,20 +249,18 @@ class GameApp:
         pose: PoseSnapshot,
         mouse: tuple[int, int],
     ) -> None:
+        for event in events:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.screen = self.calibration_return_screen
+                return
         if pose.calibration == CalibrationStatus.READY:
             self.keyboard_only = False
             self._after_calibration()
             return
-        for event in events:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                self.screen = Screen.MENU
-                return
         action = self._clicked(events, self._calibration_buttons(), mouse)
         if action == "keyboard":
             self.keyboard_only = True
             self._after_calibration()
-        elif action == "back":
-            self.screen = Screen.MENU
 
     def _after_calibration(self) -> None:
         if self.calibration_destination == Screen.PAUSED:
@@ -367,6 +368,7 @@ class GameApp:
             self.screen = Screen.PLAYING
         elif action == "recalibrate":
             self.calibration_destination = Screen.PAUSED
+            self.calibration_return_screen = Screen.PAUSED
             self.camera.recalibrate()
             self.screen = Screen.CALIBRATION
         elif action == "settings":
@@ -478,32 +480,8 @@ class GameApp:
         title_rect = self.assets.title.get_rect(midtop=(640, 15))
         self.canvas.blit(self.assets.title, title_rect)
 
-        tagline = self.font_small.render(
-            "RUN FAST. STAY PAWSITIVE.",
-            True,
-            (61, 38, 18),
-        )
-        tagline_box = tagline.get_rect(center=(640, 650)).inflate(44, 16)
-        pygame.draw.rect(
-            self.canvas,
-            (222, 179, 90),
-            tagline_box.move(0, 4),
-            border_radius=15,
-        )
-        pygame.draw.rect(
-            self.canvas,
-            (255, 235, 168),
-            tagline_box,
-            border_radius=15,
-        )
-        pygame.draw.rect(
-            self.canvas,
-            (80, 47, 20),
-            tagline_box,
-            3,
-            border_radius=15,
-        )
-        self.canvas.blit(tagline, tagline.get_rect(center=tagline_box.center))
+        tagline = self.assets.menu_tagline
+        self.canvas.blit(tagline, tagline.get_rect(center=(640, 650)))
 
         self.canvas.blit(
             self.assets.menu_pipin,
@@ -542,58 +520,17 @@ class GameApp:
         self.canvas.blit(image, image.get_rect(center=center))
 
     def _draw_high_score_panel(self) -> None:
-        panel = pygame.Rect(1005, 24, 245, 96)
-        pygame.draw.rect(
-            self.canvas,
-            (55, 31, 15),
-            panel.move(0, 6),
-            border_radius=13,
+        panel = self.assets.high_score_panel
+        panel_rect = panel.get_rect(topright=(1250, 18))
+        self.canvas.blit(panel, panel_rect)
+
+        value = f"{self.preferences.high_score:,}"
+        score_font = fitted_ui_font(value, 177, 37)
+        score = score_font.render(value, False, (255, 187, 27))
+        self.canvas.blit(
+            score,
+            score.get_rect(center=(panel_rect.left + 155, panel_rect.top + 61)),
         )
-        pygame.draw.rect(
-            self.canvas,
-            (45, 31, 24),
-            panel,
-            border_radius=13,
-        )
-        pygame.draw.rect(
-            self.canvas,
-            (244, 173, 31),
-            panel,
-            4,
-            border_radius=13,
-        )
-        trophy = (panel.left + 37, panel.centery + 6)
-        pygame.draw.ellipse(
-            self.canvas,
-            (255, 194, 30),
-            (trophy[0] - 13, trophy[1] - 27, 26, 30),
-        )
-        pygame.draw.line(
-            self.canvas,
-            (255, 194, 30),
-            (trophy[0], trophy[1]),
-            (trophy[0], trophy[1] + 17),
-            6,
-        )
-        pygame.draw.line(
-            self.canvas,
-            (255, 194, 30),
-            (trophy[0] - 12, trophy[1] + 18),
-            (trophy[0] + 12, trophy[1] + 18),
-            5,
-        )
-        label = pygame.font.Font(None, 25).render(
-            "HIGH SCORE",
-            True,
-            COLORS["white"],
-        )
-        score = self.font_medium.render(
-            f"{self.preferences.high_score:,}",
-            True,
-            (255, 187, 27),
-        )
-        self.canvas.blit(label, (panel.left + 76, panel.top + 13))
-        self.canvas.blit(score, (panel.left + 76, panel.top + 43))
 
     def _draw_settings(
         self, pose: PoseSnapshot, mouse: tuple[int, int]
@@ -610,8 +547,9 @@ class GameApp:
         )
         self.canvas.blit(index, index.get_rect(center=(640, 309)))
         state = "ON" if self.preferences.show_camera else "OFF"
-        detail = self.font_small.render(
-            f"Separate camera window: {state}", True, COLORS["cream"]
+        detail_text = f"Separate camera window: {state}"
+        detail = fitted_ui_font(detail_text, panel.width - 36, 18).render(
+            detail_text, True, COLORS["cream"]
         )
         self.canvas.blit(detail, detail.get_rect(center=(640, 354)))
         for button in self._settings_buttons():
@@ -627,42 +565,85 @@ class GameApp:
     def _draw_calibration(
         self, pose: PoseSnapshot, mouse: tuple[int, int]
     ) -> None:
-        self._draw_background()
+        self.canvas.blit(self.assets.main_background, (0, 0))
+        board = pygame.Rect(80, 25, 1120, 660)
+        pygame.draw.rect(self.canvas, (63, 35, 21), board.move(8, 9))
+        pygame.draw.rect(self.canvas, (94, 51, 27), board)
+        pygame.draw.rect(self.canvas, (191, 115, 44), board.inflate(-12, -12))
+        pygame.draw.rect(self.canvas, (235, 178, 75), board.inflate(-24, -24))
+        pygame.draw.rect(self.canvas, (29, 69, 48), board.inflate(-38, -38))
+        pygame.draw.rect(self.canvas, (47, 94, 61), board.inflate(-48, -48), 2)
+
+        board_center = board.centerx
         heading = self.font_large.render(
-            "CAMERA CALIBRATION", True, COLORS["cream"]
+            "CAMERA CALIBRATION", False, COLORS["cream"]
         )
-        self.canvas.blit(heading, heading.get_rect(center=(640, 105)))
+        self.canvas.blit(heading, heading.get_rect(center=(board_center, 115)))
         instructions = [
             "Stand centered about 1-1.5 metres from the camera.",
             "Keep your head, shoulders, torso, and hips visible.",
             "Hold still until the calibration bar is full.",
         ]
         for index, line in enumerate(instructions):
-            rendered = self.font_small.render(line, True, COLORS["white"])
+            rendered = ui_font(20).render(line, False, COLORS["cream"])
             self.canvas.blit(
-                rendered, rendered.get_rect(center=(640, 205 + index * 42))
+                rendered,
+                rendered.get_rect(center=(board_center, 210 + index * 65)),
             )
         pygame.draw.rect(
-            self.canvas, COLORS["dark"], (360, 365, 560, 44), border_radius=20
+            self.canvas, (15, 39, 30), (360, 375, 560, 44)
         )
         progress = int(548 * pose.calibration_progress)
         pygame.draw.rect(
             self.canvas,
-            COLORS["green"],
-            (366, 371, progress, 32),
-            border_radius=16,
+            (255, 191, 53),
+            (366, 381, progress, 32),
         )
-        status = self.font_medium.render(
-            pose.calibration.value, True, COLORS["cream"]
+        status = fitted_ui_font(pose.calibration.value, 1030, 26).render(
+            pose.calibration.value, False, COLORS["cream"]
         )
-        self.canvas.blit(status, status.get_rect(center=(640, 462)))
+        self.canvas.blit(status, status.get_rect(center=(board_center, 470)))
         if pose.camera_error:
-            error = self.font_small.render(
-                pose.camera_error[:70], True, (255, 170, 170)
+            error_text = pose.camera_error[:55]
+            error = fitted_ui_font(error_text, 1030, 18).render(
+                error_text, False, (255, 170, 170)
             )
-            self.canvas.blit(error, error.get_rect(center=(640, 505)))
+            self.canvas.blit(error, error.get_rect(center=(board_center, 505)))
         for button in self._calibration_buttons():
-            button.draw(self.canvas, self.font_small, mouse)
+            self._draw_keyboard_only_button(button, mouse)
+
+    def _draw_keyboard_only_button(
+        self, button: Button, mouse: tuple[int, int]
+    ) -> None:
+        hovered = button.rect.collidepoint(mouse)
+        pressed = hovered and pygame.mouse.get_pressed(num_buttons=3)[0]
+        image = self.assets.keyboard_only_button
+        label_offset = 36
+        face_center_fraction = 40 / 95
+        center = button.rect.center
+
+        if pressed:
+            image = pygame.transform.scale_by(image, 0.97)
+            image.fill((18, 18, 18, 0), special_flags=pygame.BLEND_RGB_SUB)
+            center = (center[0], center[1] + 3)
+        elif hovered:
+            image = pygame.transform.scale_by(image, 1.04)
+            image.fill((16, 16, 16, 0), special_flags=pygame.BLEND_RGB_ADD)
+            center = (center[0], center[1] - 1)
+
+        image_rect = image.get_rect(center=center)
+        self.canvas.blit(image, image_rect)
+        label = ui_font(16).render(button.label, False, (69, 36, 10))
+        glyph = label.get_bounding_rect(min_alpha=1)
+        label_rect = label.get_rect()
+        # Center the visible letters within the space beside each icon.
+        label_rect.x = center[0] + label_offset - glyph.left - glyph.width // 2
+        # The shadow and font surface both have asymmetric padding.
+        face_center_y = image_rect.top + round(
+            image_rect.height * face_center_fraction
+        )
+        label_rect.y = face_center_y - glyph.top - glyph.height // 2
+        self.canvas.blit(label, label_rect)
 
     def _draw_tutorial(self) -> None:
         has_obstacle = any(
@@ -685,7 +666,9 @@ class GameApp:
             if self.tutorial_index >= len(labels)
             else labels[self.tutorial_index]
         )
-        rendered = self.font_large.render(message, True, COLORS["white"])
+        rendered = fitted_ui_font(message, 1150, 55).render(
+            message, True, COLORS["white"]
+        )
         box = rendered.get_rect(center=(640, 180)).inflate(50, 28)
         pygame.draw.rect(self.canvas, COLORS["dark"], box, border_radius=16)
         self.canvas.blit(rendered, rendered.get_rect(center=box.center))
@@ -736,7 +719,9 @@ class GameApp:
         else:
             label = "CAMERA NEEDS CALIBRATION"
             color = COLORS["orange"]
-        rendered = self.font_small.render(label, True, COLORS["white"])
+        rendered = fitted_ui_font(label, 540, 18).render(
+            label, True, COLORS["white"]
+        )
         box = rendered.get_rect(bottomleft=(20, 704)).inflate(20, 12)
         pygame.draw.rect(self.canvas, color, box, border_radius=9)
         self.canvas.blit(rendered, rendered.get_rect(center=box.center))

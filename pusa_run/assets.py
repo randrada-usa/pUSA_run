@@ -83,6 +83,18 @@ class GameAssets:
         )
         self.app_art = _crop_alpha(_load("app_art.png"))
         self.app_icon = pygame.transform.scale(self.app_art, (64, 64))
+        self.high_score_panel = scale_to_width(
+            _crop_alpha(_load("high_score_panel.png")),
+            290,
+        )
+        self.menu_tagline = scale_to_width(
+            _crop_alpha(_load("pawsitive.png")),
+            380,
+        )
+        self.keyboard_only_button = scale_to_width(
+            _crop_alpha(_load("keyboard_only_button.png")),
+            330,
+        )
 
         track = scale_to_width(
             _load("gameplay_hall.png"),
@@ -144,6 +156,6 @@ class GameAssets:
             64,
         )
         self.menu_buttons["exit"]["default"] = scale_to_height(
-            _crop_alpha(_load_button("exit_icon_default.png")),
+            _crop_alpha(_load_button("exit_icon_left.png")),
             64,
         )
