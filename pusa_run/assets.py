@@ -117,6 +117,11 @@ class GameAssets:
         )
 
         self.menu_buttons: dict[str, dict[str, pygame.Surface]] = {}
+        target_widths = {
+            "play": 270,
+            "settings": 240,
+            "exit": 240,
+        }
         for action in ("play", "settings", "exit"):
             source_states = {
                 state: _crop_alpha(
@@ -128,7 +133,7 @@ class GameAssets:
                     ("pressed", "press"),
                 )
             }
-            scale = 300 / source_states["default"].get_width()
+            scale = target_widths[action] / source_states["default"].get_width()
             self.menu_buttons[action] = {
                 state: scale_by(image, scale)
                 for state, image in source_states.items()

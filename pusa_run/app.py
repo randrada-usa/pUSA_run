@@ -170,9 +170,9 @@ class GameApp:
 
     def _menu_buttons(self) -> list[Button]:
         return [
-            Button("PLAY", pygame.Rect(480, 330, 320, 100), "play"),
-            Button("SETTINGS", pygame.Rect(480, 442, 320, 100), "settings"),
-            Button("EXIT", pygame.Rect(480, 554, 320, 100), "exit"),
+            Button("PLAY", pygame.Rect(490, 352, 300, 96), "play"),
+            Button("SETTINGS", pygame.Rect(500, 463, 280, 94), "settings"),
+            Button("EXIT", pygame.Rect(500, 573, 280, 94), "exit"),
         ]
 
     def _update_menu(
