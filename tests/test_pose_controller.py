@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from dataclasses import dataclass
 
+import numpy as np
+
 from pusa_run.actions import Action
 from pusa_run.pose_controller import CalibrationStatus, PoseController
 
@@ -70,6 +72,19 @@ class PoseControllerTests(unittest.TestCase):
             [Action.JUMP],
         )
 
+    def test_skeleton_stops_at_hips(self) -> None:
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        landmarks = [Landmark(0.5, 0.5, visibility=0.0) for _ in range(33)]
+        landmarks[23] = Landmark(0.4, 0.5)
+        landmarks[25] = Landmark(0.4, 0.7)
+        landmarks[27] = Landmark(0.4, 0.9)
+        landmarks[24] = Landmark(0.6, 0.5, visibility=0.1)
+
+        self.controller._draw_skeleton(frame, landmarks)
+
+        self.assertTupleEqual(tuple(frame[240, 256]), (20, 20, 240))
+        self.assertFalse(frame[250:].any())
+        self.assertTupleEqual(tuple(frame[239, 383]), (0, 0, 0))
 
 if __name__ == "__main__":
     unittest.main()

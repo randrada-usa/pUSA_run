@@ -49,10 +49,11 @@ class PoseController:
     """Own the webcam and turn upper-body landmarks into discrete actions."""
 
     CONNECTIONS = (
-        (0, 11), (0, 12), (11, 12),
+        (11, 12),
         (11, 13), (13, 15), (12, 14), (14, 16),
         (11, 23), (12, 24), (23, 24),
     )
+    JOINTS = (11, 12, 13, 14, 15, 16, 23, 24)
 
     def __init__(
         self,
@@ -362,19 +363,7 @@ class PoseController:
         snapshot = self.snapshot()
 
         if landmarks:
-            for start, end in self.CONNECTIONS:
-                if start >= len(landmarks) or end >= len(landmarks):
-                    continue
-                a, b = landmarks[start], landmarks[end]
-                if self._visible(a, 0.25) and self._visible(b, 0.25):
-                    cv2.line(
-                        frame,
-                        (int(a.x * width), int(a.y * height)),
-                        (int(b.x * width), int(b.y * height)),
-                        (58, 219, 255),
-                        2,
-                        cv2.LINE_AA,
-                    )
+            self._draw_skeleton(frame, landmarks)
 
         if snapshot.calibration == CalibrationStatus.READY:
             left = int((snapshot.neutral_x - snapshot.lane_threshold) * width)
@@ -393,3 +382,22 @@ class PoseController:
             status = f"{snapshot.calibration.value} {int(snapshot.calibration_progress * 100)}%"
         cv2.putText(frame, status, (16, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(frame, "F2 hides this window", (16, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (210, 210, 210), 1, cv2.LINE_AA)
+
+    def _draw_skeleton(self, frame: np.ndarray, landmarks: list[object]) -> None:
+        height, width = frame.shape[:2]
+        points: dict[int, tuple[int, int]] = {}
+        for index in self.JOINTS:
+            if index >= len(landmarks):
+                continue
+            landmark = landmarks[index]
+            if not self._visible(landmark, 0.25) or not (0 <= landmark.x <= 1 and 0 <= landmark.y <= 1):
+                continue
+            points[index] = (round(landmark.x * (width - 1)), round(landmark.y * (height - 1)))
+
+        for start, end in self.CONNECTIONS:
+            if start in points and end in points:
+                cv2.line(frame, points[start], points[end], (0, 255, 255), 3, cv2.LINE_AA)
+
+        for point in points.values():
+            cv2.circle(frame, point, 7, (20, 20, 35), -1, cv2.LINE_AA)
+            cv2.circle(frame, point, 5, (20, 20, 240), -1, cv2.LINE_AA)
