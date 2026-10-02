@@ -26,6 +26,16 @@ def main() -> None:
         app._draw_menu((-1, -1))
         pygame.image.save(app.canvas, output / "menu.png")
 
+        app._draw_menu((640, 380))
+        pygame.image.save(app.canvas, output / "menu_hover.png")
+
+        with patch(
+            "pygame.mouse.get_pressed",
+            return_value=(True, False, False),
+        ):
+            app._draw_menu((640, 380))
+        pygame.image.save(app.canvas, output / "menu_pressed.png")
+
         world = RunnerWorld(seed=12)
         world.elapsed = 18.0
         world.distance = 640.0

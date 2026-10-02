@@ -1,12 +1,25 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pygame
 
 from .constants import LOGICAL_SIZE, resource_path
 
 
 def _load(name: str, *, alpha: bool = True) -> pygame.Surface:
-    surface = pygame.image.load(str(resource_path("assets", "images", name)))
+    return _load_path(
+        resource_path("assets", "images", name),
+        alpha=alpha,
+    )
+
+
+def _load_button(name: str) -> pygame.Surface:
+    return _load_path(resource_path("assets", "pUSARUN_buttons", name))
+
+
+def _load_path(path: Path, *, alpha: bool = True) -> pygame.Surface:
+    surface = pygame.image.load(str(path))
     return surface.convert_alpha() if alpha else surface.convert()
 
 
@@ -25,6 +38,14 @@ def scale_to_width(surface: pygame.Surface, width: int) -> pygame.Surface:
 def scale_to_height(surface: pygame.Surface, height: int) -> pygame.Surface:
     width = max(1, round(surface.get_width() * height / surface.get_height()))
     return pygame.transform.scale(surface, (width, height))
+
+
+def scale_by(surface: pygame.Surface, factor: float) -> pygame.Surface:
+    size = (
+        max(1, round(surface.get_width() * factor)),
+        max(1, round(surface.get_height() * factor)),
+    )
+    return pygame.transform.scale(surface, size)
 
 
 def scale_cover(surface: pygame.Surface, size: tuple[int, int]) -> pygame.Surface:
@@ -94,3 +115,21 @@ class GameAssets:
             _crop_alpha(_load("catfood_item.png")),
             72,
         )
+
+        self.menu_buttons: dict[str, dict[str, pygame.Surface]] = {}
+        for action in ("play", "settings", "exit"):
+            source_states = {
+                state: _crop_alpha(
+                    _load_button(f"{action}_{filename_state}.png")
+                )
+                for state, filename_state in (
+                    ("default", "default"),
+                    ("hover", "hover"),
+                    ("pressed", "press"),
+                )
+            }
+            scale = 300 / source_states["default"].get_width()
+            self.menu_buttons[action] = {
+                state: scale_by(image, scale)
+                for state, image in source_states.items()
+            }

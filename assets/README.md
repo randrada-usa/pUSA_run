@@ -4,6 +4,10 @@ The supplied title, backgrounds, characters, and collectibles are stored in
 assets/images and are loaded by the game. Obstacles still use generated
 placeholder art until their final PNG assets are provided.
 
+The menu button states are stored in assets/pUSARUN_buttons. Each Play,
+Settings, and Exit state is centered on the same interaction rectangle so
+state images may intentionally use different dimensions.
+
 Export PNG files in sRGB. Use transparent backgrounds for characters,
 obstacles, collectibles, icons, and buttons. Keep every frame of one animation
 on an identical canvas with the character anchored at the same foot position.

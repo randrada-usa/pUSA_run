@@ -170,9 +170,9 @@ class GameApp:
 
     def _menu_buttons(self) -> list[Button]:
         return [
-            Button("PLAY", pygame.Rect(480, 365, 320, 72), "play"),
-            Button("SETTINGS", pygame.Rect(480, 457, 320, 72), "settings"),
-            Button("EXIT", pygame.Rect(480, 549, 320, 72), "exit"),
+            Button("PLAY", pygame.Rect(480, 330, 320, 100), "play"),
+            Button("SETTINGS", pygame.Rect(480, 442, 320, 100), "settings"),
+            Button("EXIT", pygame.Rect(480, 554, 320, 100), "exit"),
         ]
 
     def _update_menu(
@@ -403,7 +403,7 @@ class GameApp:
         if enter and buttons:
             return buttons[0].action
         for event in events:
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 for button in buttons:
                     if button.rect.collidepoint(mouse):
                         return button.action
@@ -526,80 +526,10 @@ class GameApp:
         mouse: tuple[int, int],
     ) -> None:
         hovered = button.rect.collidepoint(mouse)
-        is_play = button.action == "play"
-        face = (255, 180, 32) if is_play else (250, 220, 163)
-        if hovered:
-            face = tuple(min(255, channel + 14) for channel in face)
-
-        pygame.draw.rect(
-            self.canvas,
-            (69, 39, 19),
-            button.rect.move(0, 8),
-            border_radius=14,
-        )
-        pygame.draw.rect(
-            self.canvas,
-            face,
-            button.rect,
-            border_radius=14,
-        )
-        pygame.draw.rect(
-            self.canvas,
-            (83, 49, 22),
-            button.rect,
-            4,
-            border_radius=14,
-        )
-
-        icon_center = (button.rect.left + 48, button.rect.centery)
-        icon_color = (79, 48, 25)
-        if button.action == "play":
-            pygame.draw.circle(self.canvas, icon_color, icon_center, 12)
-            for dx, dy in ((-13, -17), (-4, -23), (7, -22), (16, -13)):
-                pygame.draw.circle(
-                    self.canvas,
-                    icon_color,
-                    (icon_center[0] + dx, icon_center[1] + dy),
-                    6,
-                )
-        elif button.action == "settings":
-            pygame.draw.circle(self.canvas, icon_color, icon_center, 18, 7)
-            pygame.draw.circle(self.canvas, icon_color, icon_center, 5)
-            for angle in range(0, 360, 45):
-                direction = pygame.Vector2(0, -25).rotate(angle)
-                end = pygame.Vector2(icon_center) + direction
-                pygame.draw.line(
-                    self.canvas,
-                    icon_color,
-                    icon_center,
-                    end,
-                    7,
-                )
-        else:
-            door = pygame.Rect(0, 0, 25, 34)
-            door.center = icon_center
-            pygame.draw.rect(self.canvas, icon_color, door, 5)
-            pygame.draw.circle(
-                self.canvas,
-                icon_color,
-                (door.right - 7, door.centery),
-                3,
-            )
-            pygame.draw.line(
-                self.canvas,
-                icon_color,
-                (door.right + 2, door.centery),
-                (door.right + 17, door.centery),
-                5,
-            )
-
-        label = self.font_medium.render(button.label, True, (50, 32, 21))
-        self.canvas.blit(
-            label,
-            label.get_rect(
-                center=(button.rect.centerx + 22, button.rect.centery)
-            ),
-        )
+        pressed = hovered and pygame.mouse.get_pressed(num_buttons=3)[0]
+        state = "pressed" if pressed else "hover" if hovered else "default"
+        image = self.assets.menu_buttons[button.action][state]
+        self.canvas.blit(image, image.get_rect(center=button.rect.center))
 
     def _draw_high_score_panel(self) -> None:
         panel = pygame.Rect(1005, 24, 245, 96)
@@ -846,6 +776,12 @@ def main() -> int:
             controller = PoseController(show_window=False)
             landmarker = controller._create_landmarker()
             landmarker.close()
+            return 0
+        if "--asset-self-test" in sys.argv:
+            pygame.init()
+            pygame.display.set_mode((1, 1), pygame.HIDDEN)
+            GameAssets()
+            pygame.quit()
             return 0
         return GameApp().run()
     except KeyboardInterrupt:
