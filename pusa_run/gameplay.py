@@ -131,7 +131,14 @@ class RunnerWorld:
     def update(self, dt: float, collision_grace: bool = False) -> None:
         if self.game_over:
             return
-        dt = min(dt, 0.05)
+        # Keep collision steps small without discarding normal low-FPS frame time.
+        remaining = min(max(dt, 0.0), 0.25)
+        while remaining > 1e-9 and not self.game_over:
+            step = min(remaining, 0.05)
+            self._update_step(step, collision_grace)
+            remaining -= step
+
+    def _update_step(self, dt: float, collision_grace: bool) -> None:
         self.elapsed += dt
         self.player.update(dt)
         difficulty = difficulty_at(self.elapsed)

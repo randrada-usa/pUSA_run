@@ -26,16 +26,39 @@ class DifficultyTests(unittest.TestCase):
 
     def test_curve_rises_and_caps(self) -> None:
         start = difficulty_at(0)
+        one_minute = difficulty_at(60)
         middle = difficulty_at(120)
         late = difficulty_at(10_000)
-        self.assertLess(start.scroll_speed, middle.scroll_speed)
+        self.assertEqual(one_minute.scroll_speed, 565.0)
+        self.assertAlmostEqual(one_minute.spawn_interval, 0.85)
+        self.assertAlmostEqual(one_minute.double_obstacle_chance, 0.60)
+        self.assertLess(start.scroll_speed, one_minute.scroll_speed)
+        self.assertLess(one_minute.scroll_speed, middle.scroll_speed)
         self.assertLess(middle.scroll_speed, late.scroll_speed)
-        self.assertEqual(late.scroll_speed, 445.0)
-        self.assertGreaterEqual(late.spawn_interval, 0.95)
-        self.assertLessEqual(late.double_obstacle_chance, 0.48)
+        self.assertEqual(middle.scroll_speed, 625.0)
+        self.assertAlmostEqual(middle.spawn_interval, 0.78)
+        self.assertAlmostEqual(middle.double_obstacle_chance, 0.66)
+        self.assertEqual(late.scroll_speed, 745.0)
+        self.assertGreaterEqual(late.spawn_interval, 0.78)
+        self.assertLessEqual(late.double_obstacle_chance, 0.75)
 
 
 class PlayerTests(unittest.TestCase):
+    def test_low_fps_frame_advances_full_time(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.spawn_timer = 99.0
+        world.update(0.1)
+        self.assertAlmostEqual(world.elapsed, 0.1)
+        self.assertGreater(world.background_scroll, 24.0)
+
+    def test_one_minute_ramp_at_ten_fps(self) -> None:
+        world = RunnerWorld(seed=1)
+        for _ in range(600):
+            world.update(0.1, collision_grace=True)
+        self.assertAlmostEqual(world.elapsed, 60.0)
+        self.assertEqual(world.last_difficulty.tier, 6)
+        self.assertEqual(world.last_difficulty.scroll_speed, 565.0)
+
     def test_lane_changes_are_bounded(self) -> None:
         world = RunnerWorld(seed=1)
         for _ in range(5):

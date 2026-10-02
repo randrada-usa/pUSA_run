@@ -13,14 +13,18 @@ class DifficultySnapshot:
 
 
 def difficulty_at(elapsed: float) -> DifficultySnapshot:
-    """Return a gradual, capped difficulty curve for a run."""
+    """Ramp quickly through the first minute, then grow more slowly."""
     elapsed = max(0.0, elapsed)
-    tier = min(24, int(elapsed // 10.0))
+    # Frame-time sums can land a few nanoseconds below an exact tier boundary.
+    tier = min(24, int((elapsed + 1e-6) // 10.0))
     introduction = min(1.0, elapsed / 20.0)
-    scroll_speed = 245.0 + 20.0 * introduction + 7.5 * tier
-    scroll_speed = min(scroll_speed, 445.0)
-    spawn_interval = max(0.95, 1.75 - 0.035 * tier)
-    double_chance = min(0.48, max(0.0, (tier - 1) * 0.025))
+    first_minute_tiers = min(tier, 6)
+    later_tiers = max(0, tier - 6)
+    scroll_speed = 245.0 + 20.0 * introduction + 50.0 * first_minute_tiers
+    scroll_speed += 10.0 * later_tiers
+    scroll_speed = min(scroll_speed, 745.0)
+    spawn_interval = max(0.78, 1.75 - 0.15 * first_minute_tiers - 0.012 * later_tiers)
+    double_chance = min(0.75, max(0.0, (first_minute_tiers - 1) * 0.12) + 0.01 * later_tiers)
     return DifficultySnapshot(
         elapsed=elapsed,
         tier=tier,
