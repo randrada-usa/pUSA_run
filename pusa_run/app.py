@@ -12,7 +12,7 @@ import pygame
 
 from .actions import Action, InputEvent
 from .assets import GameAssets
-from .constants import COLORS, FPS, GAME_TITLE, LOGICAL_HEIGHT, LOGICAL_SIZE, LOGICAL_WIDTH
+from .constants import COLORS, FPS, GAME_TITLE, LOGICAL_HEIGHT, LOGICAL_SIZE, LOGICAL_WIDTH, resource_path
 from .fonts import fitted_ui_font, ui_font
 from .gameplay import ObjectKind, RunnerWorld, TrackObject, draw_world
 from .pose_controller import CalibrationStatus, PoseController, PoseSnapshot
@@ -53,6 +53,7 @@ class Button:
 class GameApp:
     def __init__(self) -> None:
         pygame.init()
+        pygame.mixer.init()
         pygame.display.set_caption(GAME_TITLE)
         self.store = SaveStore()
         self.preferences: Preferences = self.store.load()
@@ -66,6 +67,12 @@ class GameApp:
         self.font_title = ui_font(70)
         self.font_medium = ui_font(32)
         self.font_small = ui_font(18)
+
+        # Background music
+        _bg_theme_path = str(resource_path("assets", "sound", "bg_theme.ogg"))
+        pygame.mixer.music.load(_bg_theme_path)
+        pygame.mixer.music.set_volume(self.preferences.music_volume)
+        self._music_playing = False
 
         self.running = True
         self.screen = Screen.MENU
@@ -89,6 +96,19 @@ class GameApp:
         self.tutorial_done_timer = 0.0
         self.calibration_destination = Screen.TUTORIAL
         self.calibration_return_screen = Screen.MENU
+        # Start music for the initial menu screen
+        self._set_menu_music(Screen.MENU)
+
+    def _set_menu_music(self, screen: Screen) -> None:
+        """Start the bg_theme loop on menu-family screens; stop it during gameplay."""
+        menu_screens = {Screen.MENU, Screen.SETTINGS, Screen.CALIBRATION, Screen.GAME_OVER}
+        should_play = screen in menu_screens
+        if should_play and not self._music_playing:
+            pygame.mixer.music.play(loops=-1)
+            self._music_playing = True
+        elif not should_play and self._music_playing:
+            pygame.mixer.music.stop()
+            self._music_playing = False
 
     def _create_display(self) -> pygame.Surface:
         flags = pygame.RESIZABLE
@@ -107,7 +127,10 @@ class GameApp:
                 camera_actions = self.camera.poll_actions()
                 events = pygame.event.get()
                 self._handle_global_events(events)
+                prev_screen = self.screen
                 self._update(events, camera_actions, pose, dt, mouse_logical)
+                if self.screen != prev_screen:
+                    self._set_menu_music(self.screen)
                 self._draw(pose, mouse_logical)
                 self._present()
             return 0
@@ -115,6 +138,7 @@ class GameApp:
             self.preferences.fullscreen = self.fullscreen
             self.store.save(self.preferences)
             self.camera.stop()
+            pygame.mixer.music.stop()
             pygame.quit()
 
     def _handle_global_events(self, events: list[pygame.event.Event]) -> None:
