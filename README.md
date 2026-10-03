@@ -37,15 +37,15 @@ Use `run_game.py`, not `main.py`. After the first setup, you only need the run c
 
 ## Controls
 
-| Action | Camera | Keyboard |
-| --- | --- | --- |
-| Left lane | Move into the left camera zone | A or Left Arrow |
-| Middle lane | Move into the middle camera zone | Move back with A/D or arrows |
-| Right lane | Move into the right camera zone | D or Right Arrow |
-| Jump | Rise above your calibrated jump line | Space, W, or Up Arrow |
-| Pause or go back | — | Esc |
-| Show/hide camera window | — | F2 |
-| Fullscreen | — | F11 |
+| Action                                     | Camera                               | Keyboard                     |
+| ---                                        | ---                                  | ---                          |
+| Left lane                                  | Move into the left camera zone       | A or Left Arrow              |
+| Middle lane                                | Move into the middle camera zone     | Move back with A/D or arrows |
+| Right lane                                 | Move into the right camera zone      | D or Right Arrow             |
+| Jump                                       | Rise above your calibrated jump line | Space, W, or Up Arrow        |
+| Pause or go back                           | —                                    | Esc                          |
+| Show/hide camera window                    | —                                    | F2                           |
+| Fullscreen                                 | —                                    | F11                          |
 
 For camera play, stand about 1–1.5 metres away with your head, shoulders, torso, and hips visible. Stay still until calibration finishes. If the camera cannot see you, Pipin keeps running; you can still use the keyboard. Choose **Keyboard Only** on the calibration screen to play without a camera.
 
