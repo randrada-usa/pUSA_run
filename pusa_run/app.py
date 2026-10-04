@@ -104,6 +104,7 @@ class GameApp:
         self._sting_channel = None
         self._menu_music_pending = False
         self._sting_ended_at: int | None = None
+        self._click_sound = None
         if self._audio_available:
             try:
                 self._game_over_sting = pygame.mixer.Sound(
@@ -112,6 +113,13 @@ class GameApp:
                 self._game_over_sting.set_volume(self.preferences.sfx_volume)
             except (pygame.error, FileNotFoundError):
                 self._game_over_sting = None
+            try:
+                self._click_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "click.wav"))
+                )
+                self._click_sound.set_volume(self.preferences.sfx_volume)
+            except (pygame.error, FileNotFoundError):
+                self._click_sound = None
             pygame.mixer.music.set_volume(self.preferences.music_volume)
             pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
@@ -568,8 +576,8 @@ class GameApp:
         elif action == "menu":
             self.screen = Screen.MENU
 
-    @staticmethod
     def _clicked(
+        self,
         events: list[pygame.event.Event],
         buttons: list[Button],
         mouse: tuple[int, int],
@@ -579,13 +587,19 @@ class GameApp:
             for event in events
         )
         if enter and buttons:
+            self._play_click()
             return buttons[0].action
         for event in events:
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 for button in buttons:
                     if button.rect.collidepoint(mouse):
+                        self._play_click()
                         return button.action
         return None
+
+    def _play_click(self) -> None:
+        if self._click_sound is not None:
+            self._click_sound.play()
 
     def _draw(self, pose: PoseSnapshot, mouse: tuple[int, int]) -> None:
         if self.screen == Screen.MENU:
