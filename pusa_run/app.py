@@ -41,6 +41,8 @@ class _MusicTrack(Enum):
 _FAST_TRACK_THRESHOLD = 60.0
 # Fadeout duration in milliseconds for the crossfade.
 _CROSSFADE_MS = 1500
+_STING_GAP_MS = 700  # silence between the game over sting and the menu theme
+_MENU_FADE_IN_MS = 1500
 
 
 @dataclass(slots=True)
@@ -98,7 +100,42 @@ class GameApp:
         self._resume_track: _MusicTrack | None = None
         self._resume_pos_s = 0.0
         self._crossfading_to_fast = False
+        self._game_over_sting = None
+        self._sting_channel = None
+        self._menu_music_pending = False
+        self._sting_ended_at: int | None = None
+        self._click_sound = None
+        self._jump_sound = None
+        self._dodge_sound = None
         if self._audio_available:
+            try:
+                self._game_over_sting = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "game over.wav"))
+                )
+                self._game_over_sting.set_volume(self.preferences.sfx_volume)
+            except (pygame.error, FileNotFoundError):
+                self._game_over_sting = None
+            try:
+                self._click_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "click.wav"))
+                )
+                self._click_sound.set_volume(self.preferences.sfx_volume)
+            except (pygame.error, FileNotFoundError):
+                self._click_sound = None
+            try:
+                self._jump_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "jump.wav"))
+                )
+                self._jump_sound.set_volume(self.preferences.sfx_volume * 0.75)
+            except (pygame.error, FileNotFoundError):
+                self._jump_sound = None
+            try:
+                self._dodge_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "dodge.wav"))
+                )
+                self._dodge_sound.set_volume(self.preferences.sfx_volume * 0.75)
+            except (pygame.error, FileNotFoundError):
+                self._dodge_sound = None
             pygame.mixer.music.set_volume(self.preferences.music_volume)
             pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
@@ -129,7 +166,9 @@ class GameApp:
 
     # ── Music helpers ───────────────────────────────────────────────
 
-    def _load_and_play(self, track: _MusicTrack, fadeout_ms: int = 0) -> None:
+    def _load_and_play(
+        self, track: _MusicTrack, fadeout_ms: int = 0, fade_in_ms: int = 0
+    ) -> None:
         """Load *track* into the mixer and loop it. Reloads only when needed."""
         if not self._audio_available:
             return
@@ -140,13 +179,26 @@ class GameApp:
         if self._current_track != track:
             pygame.mixer.music.load(self._track_paths[track])
             self._current_track = track
-        pygame.mixer.music.play(loops=-1)
+        pygame.mixer.music.play(loops=-1, fade_ms=fade_in_ms)
         self._music_playing = True
         self._crossfading_to_fast = False
 
     def _handle_music_transition(self, prev: Screen, current: Screen) -> None:
         """React to screen changes with the correct music track."""
         if not self._audio_available:
+            return
+
+        # run just ended: play the sting, then bring the menu theme in after it
+        if current == Screen.GAME_OVER and prev in (Screen.PLAYING, Screen.TUTORIAL):
+            self._crossfading_to_fast = False
+            pygame.mixer.music.stop()
+            self._music_playing = False
+            if self._game_over_sting is not None:
+                self._sting_channel = self._game_over_sting.play()
+            if self._sting_channel is not None:
+                self._menu_music_pending = True
+                return
+            self._load_and_play(_MusicTrack.BG_THEME)
             return
 
         # entering a menu screen
@@ -190,6 +242,26 @@ class GameApp:
 
         # settings / calibration are overlay screens that don't need their own music
 
+    def _update_sting_handoff(self) -> None:
+        if not self._menu_music_pending:
+            return
+        if self.screen != Screen.GAME_OVER:
+            # left game over before the sting finished; the new screen owns the music
+            self._menu_music_pending = False
+            self._sting_ended_at = None
+            if self._sting_channel is not None:
+                self._sting_channel.stop()
+            return
+        if self._sting_channel is not None and self._sting_channel.get_busy():
+            return
+        now = pygame.time.get_ticks()
+        if self._sting_ended_at is None:
+            self._sting_ended_at = now
+        if now - self._sting_ended_at >= _STING_GAP_MS:
+            self._menu_music_pending = False
+            self._sting_ended_at = None
+            self._load_and_play(_MusicTrack.BG_THEME, fade_in_ms=_MENU_FADE_IN_MS)
+
     def _check_gameplay_crossfade(self) -> None:
         # If the player survives long enough, crossfade to the fast track.
         if not self._audio_available:
@@ -228,6 +300,7 @@ class GameApp:
                 self._update(events, camera_actions, pose, dt, mouse_logical)
                 if self.screen != prev_screen:
                     self._handle_music_transition(prev_screen, self.screen)
+                self._update_sting_handoff()
                 self._draw(pose, mouse_logical)
                 self._present()
             return 0
@@ -305,7 +378,7 @@ class GameApp:
     def _update_menu(
         self, events: list[pygame.event.Event], mouse: tuple[int, int]
     ) -> None:
-        action = self._clicked(events, self._menu_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._menu_buttons(), mouse)
         if action == "play":
             pose = self.camera.snapshot()
             if pose.calibration == CalibrationStatus.READY or self.keyboard_only:
@@ -343,7 +416,7 @@ class GameApp:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.screen = self.previous_screen
                 return
-        action = self._clicked(events, self._settings_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._settings_buttons(), mouse)
         if action in ("camera_down", "camera_up"):
             delta = -1 if action == "camera_down" else 1
             self.preferences.camera_index = max(
@@ -382,7 +455,7 @@ class GameApp:
             self.keyboard_only = False
             self._after_calibration()
             return
-        action = self._clicked(events, self._calibration_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._calibration_buttons(), mouse)
         if action == "keyboard":
             self.keyboard_only = True
             self._after_calibration()
@@ -419,7 +492,7 @@ class GameApp:
         if self.tutorial_index < len(self.tutorial_actions):
             expected = self.tutorial_actions[self.tutorial_index]
             for item in actions:
-                self.tutorial_world.apply_action(item.action)
+                self._play_move_sound(self.tutorial_world.apply_action(item.action))
                 if item.action in expected:
                     self.tutorial_index += 1
                     if self.tutorial_index == 2:
@@ -456,7 +529,7 @@ class GameApp:
                 self.screen = Screen.PAUSED
                 return
         for item in actions:
-            self.world.apply_action(item.action)
+            self._play_move_sound(self.world.apply_action(item.action))
 
         now = time.monotonic()
         grace = (
@@ -490,7 +563,7 @@ class GameApp:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.screen = Screen.PLAYING
                 return
-        action = self._clicked(events, self._pause_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._pause_buttons(), mouse)
         if action == "resume":
             self.screen = Screen.PLAYING
         elif action == "recalibrate":
@@ -513,7 +586,7 @@ class GameApp:
     def _update_game_over(
         self, events: list[pygame.event.Event], mouse: tuple[int, int]
     ) -> None:
-        action = self._clicked(events, self._game_over_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._game_over_buttons(), mouse)
         if action == "retry":
             self._start_run()
         elif action == "menu":
@@ -537,6 +610,26 @@ class GameApp:
                     if button.rect.collidepoint(mouse):
                         return button.action
         return None
+
+    def _clicked_with_sound(
+        self,
+        events: list[pygame.event.Event],
+        buttons: list[Button],
+        mouse: tuple[int, int],
+    ) -> str | None:
+        action = self._clicked(events, buttons, mouse)
+        if action is not None:
+            self._play_click()
+        return action
+
+    def _play_move_sound(self, move: str | None) -> None:
+        sound = {"jump": self._jump_sound, "dodge": self._dodge_sound}.get(move)
+        if sound is not None:
+            sound.play()
+
+    def _play_click(self) -> None:
+        if self._click_sound is not None:
+            self._click_sound.play()
 
     def _draw(self, pose: PoseSnapshot, mouse: tuple[int, int]) -> None:
         if self.screen == Screen.MENU:
