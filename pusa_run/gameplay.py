@@ -358,8 +358,21 @@ def _draw_rat(
     if assets is not None:
         frame_index = int(world.elapsed * 8.0) % len(assets.rat_run_frames)
         sprite = assets.rat_run_frames[frame_index]
+        shadow_width = max(48, round(sprite.get_width() * 0.68))
+        shadow_height = max(12, round(sprite.get_height() * 0.13))
+        pygame.draw.ellipse(
+            surface,
+            COLORS["shadow"],
+            (
+                x - shadow_width // 2,
+                round(rat_y) - 10,
+                shadow_width,
+                shadow_height,
+            ),
+        )
         surface.blit(sprite, sprite.get_rect(midbottom=(x, rat_y)))
         return
+    pygame.draw.ellipse(surface, COLORS["shadow"], (x - 30, rat_y - 8, 60, 12))
     pygame.draw.ellipse(surface, (107, 105, 117), (x - 30, rat_y - 40, 60, 48))
     pygame.draw.circle(surface, (125, 123, 137), (x, rat_y - 48), 28)
     pygame.draw.circle(surface, (235, 158, 177), (x - 18, rat_y - 66), 10)

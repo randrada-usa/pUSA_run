@@ -166,7 +166,7 @@ class GameAssets:
                         resource_path("assets", "images", "obstacles", filename)
                     )
                 ),
-                104,
+                125,
             )
             for filename in (
                 "obstkl_books.png",
