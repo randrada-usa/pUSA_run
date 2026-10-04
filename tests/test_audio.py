@@ -34,23 +34,31 @@ class AudioBehaviorTests(unittest.TestCase):
     def test_cat_food_pickup_plays_sound_and_clears_queue(self) -> None:
         app = GameApp.__new__(GameApp)
         app._catfood_sound = Mock()
+        app._fish_sound = Mock()
         app.world = RunnerWorld(seed=1)
         app.world.pickups = [ObjectKind.FISH, ObjectKind.CAT_FOOD]
 
         app._play_pickup_sounds()
 
         app._catfood_sound.play.assert_called_once_with()
+        app._fish_sound.play.assert_called_once_with()
         self.assertEqual(app.world.pickups, [])
 
-    def test_fish_pickup_does_not_play_cat_food_sound(self) -> None:
-        app = GameApp.__new__(GameApp)
-        app._catfood_sound = Mock()
-        app.world = RunnerWorld(seed=1)
-        app.world.pickups = [ObjectKind.FISH]
+    def test_each_pickup_plays_only_its_own_sound(self) -> None:
+        for kind, played, silent in (
+            (ObjectKind.FISH, "_fish_sound", "_catfood_sound"),
+            (ObjectKind.CAT_FOOD, "_catfood_sound", "_fish_sound"),
+        ):
+            app = GameApp.__new__(GameApp)
+            app._catfood_sound = Mock()
+            app._fish_sound = Mock()
+            app.world = RunnerWorld(seed=1)
+            app.world.pickups = [kind]
 
-        app._play_pickup_sounds()
+            app._play_pickup_sounds()
 
-        app._catfood_sound.play.assert_not_called()
+            getattr(app, played).play.assert_called_once_with()
+            getattr(app, silent).play.assert_not_called()
 
     def test_hit_sound_plays_once_and_clears_counter(self) -> None:
         app = GameApp.__new__(GameApp)

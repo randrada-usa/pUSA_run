@@ -116,6 +116,7 @@ class GameApp:
         self._jump_sound = None
         self._dodge_sound = None
         self._catfood_sound = None
+        self._fish_sound = None
         self._hit_sound = None
         self._rat_sound = None
         self._rat_channel = None
@@ -156,6 +157,13 @@ class GameApp:
                 self._catfood_sound.set_volume(self.preferences.sfx_volume * 0.75)
             except (pygame.error, FileNotFoundError):
                 self._catfood_sound = None
+            try:
+                self._fish_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "item_fish.wav"))
+                )
+                self._fish_sound.set_volume(self.preferences.sfx_volume * 0.75)
+            except (pygame.error, FileNotFoundError):
+                self._fish_sound = None
             try:
                 self._hit_sound = pygame.mixer.Sound(
                     str(resource_path("assets", "sound", "obstacle_hit.wav"))
@@ -689,8 +697,12 @@ class GameApp:
 
     def _play_pickup_sounds(self) -> None:
         pickups, self.world.pickups = self.world.pickups, []
-        if ObjectKind.CAT_FOOD in pickups and self._catfood_sound is not None:
-            self._catfood_sound.play()
+        for kind, sound in (
+            (ObjectKind.CAT_FOOD, self._catfood_sound),
+            (ObjectKind.FISH, self._fish_sound),
+        ):
+            if kind in pickups and sound is not None:
+                sound.play()
 
     def _play_move_sound(self, move: str | None) -> None:
         sound = {"jump": self._jump_sound, "dodge": self._dodge_sound}.get(move)
