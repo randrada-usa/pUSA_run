@@ -67,7 +67,12 @@ class Button:
 class GameApp:
     def __init__(self) -> None:
         pygame.init()
-        pygame.mixer.init()
+        # Attempt to initialise the audio mixer; fall back to silent mode if no audio device is available
+        try:
+            pygame.mixer.init()
+            self._audio_available = True
+        except pygame.error:
+            self._audio_available = False
         pygame.display.set_caption(GAME_TITLE)
         self.store = SaveStore()
         self.preferences: Preferences = self.store.load()
@@ -91,8 +96,9 @@ class GameApp:
         self._current_track = _MusicTrack.NONE
         self._music_playing = False
         self._crossfading_to_fast = False
-        pygame.mixer.music.set_volume(self.preferences.music_volume)
-        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+        if self._audio_available:
+            pygame.mixer.music.set_volume(self.preferences.music_volume)
+            pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
         self.running = True
         self.screen = Screen.MENU
@@ -123,6 +129,8 @@ class GameApp:
 
     def _load_and_play(self, track: _MusicTrack, fadeout_ms: int = 0) -> None:
         """Load *track* into the mixer and loop it. Reloads only when needed."""
+        if not self._audio_available:
+            return
         if fadeout_ms and self._music_playing:
             pygame.mixer.music.fadeout(fadeout_ms)
         else:
@@ -136,6 +144,8 @@ class GameApp:
 
     def _handle_music_transition(self, prev: Screen, current: Screen) -> None:
         """React to screen changes with the correct music track."""
+        if not self._audio_available:
+            return
         menu_screens = {Screen.MENU, Screen.SETTINGS, Screen.CALIBRATION, Screen.GAME_OVER}
 
         # ── entering a menu screen ────────────────────────────────
@@ -162,6 +172,8 @@ class GameApp:
 
     def _check_gameplay_crossfade(self) -> None:
         """If the player survives long enough, crossfade to the fast track."""
+        if not self._audio_available:
+            return
         if (
             self._current_track == _MusicTrack.RADAHALL_NORMAL
             and not self._crossfading_to_fast
@@ -203,7 +215,8 @@ class GameApp:
             self.preferences.fullscreen = self.fullscreen
             self.store.save(self.preferences)
             self.camera.stop()
-            pygame.mixer.music.stop()
+            if self._audio_available:
+                pygame.mixer.music.stop()
             pygame.quit()
 
     def _handle_global_events(self, events: list[pygame.event.Event]) -> None:
