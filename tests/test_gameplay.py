@@ -85,6 +85,14 @@ class PlayerTests(unittest.TestCase):
         world.apply_action(Action.LANE_CENTER)
         self.assertEqual(world.player.lane, 1)
 
+    def test_successful_actions_report_their_sound_kind(self) -> None:
+        world = RunnerWorld(seed=1)
+
+        self.assertEqual(world.apply_action(Action.MOVE_LEFT), "dodge")
+        self.assertIsNone(world.apply_action(Action.MOVE_LEFT))
+        self.assertEqual(world.apply_action(Action.JUMP), "jump")
+        self.assertIsNone(world.apply_action(Action.JUMP))
+
     def test_jump_leaves_and_returns_to_ground(self) -> None:
         world = RunnerWorld(seed=1)
         world.apply_action(Action.JUMP)

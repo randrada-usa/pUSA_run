@@ -378,7 +378,7 @@ class GameApp:
     def _update_menu(
         self, events: list[pygame.event.Event], mouse: tuple[int, int]
     ) -> None:
-        action = self._clicked(events, self._menu_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._menu_buttons(), mouse)
         if action == "play":
             pose = self.camera.snapshot()
             if pose.calibration == CalibrationStatus.READY or self.keyboard_only:
@@ -416,7 +416,7 @@ class GameApp:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.screen = self.previous_screen
                 return
-        action = self._clicked(events, self._settings_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._settings_buttons(), mouse)
         if action in ("camera_down", "camera_up"):
             delta = -1 if action == "camera_down" else 1
             self.preferences.camera_index = max(
@@ -455,7 +455,7 @@ class GameApp:
             self.keyboard_only = False
             self._after_calibration()
             return
-        action = self._clicked(events, self._calibration_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._calibration_buttons(), mouse)
         if action == "keyboard":
             self.keyboard_only = True
             self._after_calibration()
@@ -563,7 +563,7 @@ class GameApp:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.screen = Screen.PLAYING
                 return
-        action = self._clicked(events, self._pause_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._pause_buttons(), mouse)
         if action == "resume":
             self.screen = Screen.PLAYING
         elif action == "recalibrate":
@@ -586,14 +586,14 @@ class GameApp:
     def _update_game_over(
         self, events: list[pygame.event.Event], mouse: tuple[int, int]
     ) -> None:
-        action = self._clicked(events, self._game_over_buttons(), mouse)
+        action = self._clicked_with_sound(events, self._game_over_buttons(), mouse)
         if action == "retry":
             self._start_run()
         elif action == "menu":
             self.screen = Screen.MENU
 
+    @staticmethod
     def _clicked(
-        self,
         events: list[pygame.event.Event],
         buttons: list[Button],
         mouse: tuple[int, int],
@@ -603,15 +603,24 @@ class GameApp:
             for event in events
         )
         if enter and buttons:
-            self._play_click()
             return buttons[0].action
         for event in events:
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 for button in buttons:
                     if button.rect.collidepoint(mouse):
-                        self._play_click()
                         return button.action
         return None
+
+    def _clicked_with_sound(
+        self,
+        events: list[pygame.event.Event],
+        buttons: list[Button],
+        mouse: tuple[int, int],
+    ) -> str | None:
+        action = self._clicked(events, buttons, mouse)
+        if action is not None:
+            self._play_click()
+        return action
 
     def _play_move_sound(self, move: str | None) -> None:
         sound = {"jump": self._jump_sound, "dodge": self._dodge_sound}.get(move)

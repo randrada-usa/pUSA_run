@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+import os
+import unittest
+from unittest.mock import Mock, patch
+
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+
+import pygame
+
+from pusa_run.app import GameApp, Screen, _MENU_FADE_IN_MS, _MusicTrack
+
+
+class AudioBehaviorTests(unittest.TestCase):
+    def test_move_sounds_match_successful_action(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._jump_sound = Mock()
+        app._dodge_sound = Mock()
+
+        app._play_move_sound("jump")
+        app._play_move_sound("dodge")
+        app._play_move_sound(None)
+
+        app._jump_sound.play.assert_called_once_with()
+        app._dodge_sound.play.assert_called_once_with()
+
+    @patch("pygame.mixer.music.stop")
+    def test_game_over_sting_defers_menu_music(self, stop_music: Mock) -> None:
+        app = GameApp.__new__(GameApp)
+        channel = Mock()
+        app._audio_available = True
+        app._crossfading_to_fast = True
+        app._music_playing = True
+        app._game_over_sting = Mock()
+        app._game_over_sting.play.return_value = channel
+        app._sting_channel = None
+        app._menu_music_pending = False
+        app._load_and_play = Mock()
+
+        app._handle_music_transition(Screen.PLAYING, Screen.GAME_OVER)
+
+        stop_music.assert_called_once_with()
+        self.assertFalse(app._music_playing)
+        self.assertTrue(app._menu_music_pending)
+        self.assertIs(app._sting_channel, channel)
+        app._load_and_play.assert_not_called()
+
+    @patch("pygame.time.get_ticks", return_value=900)
+    def test_finished_sting_hands_off_to_menu_music(self, _ticks: Mock) -> None:
+        app = GameApp.__new__(GameApp)
+        app.screen = Screen.GAME_OVER
+        app._menu_music_pending = True
+        app._sting_ended_at = 100
+        app._sting_channel = Mock()
+        app._sting_channel.get_busy.return_value = False
+        app._load_and_play = Mock()
+
+        app._update_sting_handoff()
+
+        self.assertFalse(app._menu_music_pending)
+        self.assertIsNone(app._sting_ended_at)
+        app._load_and_play.assert_called_once_with(
+            _MusicTrack.BG_THEME,
+            fade_in_ms=_MENU_FADE_IN_MS,
+        )
+
+    def test_audio_unavailable_skips_transition(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._audio_available = False
+        app._game_over_sting = Mock()
+
+        app._handle_music_transition(Screen.PLAYING, Screen.GAME_OVER)
+
+        app._game_over_sting.play.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

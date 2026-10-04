@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from unittest.mock import Mock
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
@@ -29,6 +30,26 @@ class MenuButtonTests(unittest.TestCase):
     def test_release_outside_does_not_activate(self) -> None:
         events = [pygame.event.Event(pygame.MOUSEBUTTONUP, button=1)]
         self.assertIsNone(GameApp._clicked(events, [self.button], (500, 500)))
+
+    def test_valid_click_plays_sound_once(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._play_click = Mock()
+        events = [pygame.event.Event(pygame.MOUSEBUTTONUP, button=1)]
+
+        action = app._clicked_with_sound(events, [self.button], (50, 30))
+
+        self.assertEqual(action, "play")
+        app._play_click.assert_called_once_with()
+
+    def test_invalid_click_does_not_play_sound(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._play_click = Mock()
+        events = [pygame.event.Event(pygame.MOUSEBUTTONUP, button=1)]
+
+        action = app._clicked_with_sound(events, [self.button], (500, 500))
+
+        self.assertIsNone(action)
+        app._play_click.assert_not_called()
 
     def test_calibration_has_only_centered_keyboard_button(self) -> None:
         buttons = GameApp._calibration_buttons(None)
