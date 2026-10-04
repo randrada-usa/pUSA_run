@@ -44,6 +44,14 @@ _CROSSFADE_MS = 1500
 _STING_GAP_MS = 700  # silence between the game over sting and the menu theme
 _MENU_FADE_IN_MS = 1500
 
+# Rat squeak by remaining hearts: (seconds between squeaks, volume 0-1).
+# The rat gets closer as hearts drop, so squeaks get faster and louder.
+_RAT_SQUEAK_BY_HEARTS = {
+    3: (3.0, 0.35),
+    2: (1.8, 0.65),
+    1: (0.9, 1.0),
+}
+
 
 @dataclass(slots=True)
 class Button:
@@ -108,6 +116,9 @@ class GameApp:
         self._jump_sound = None
         self._dodge_sound = None
         self._catfood_sound = None
+        self._rat_sound = None
+        self._rat_channel = None
+        self._rat_squeak_timer = _RAT_SQUEAK_BY_HEARTS[3][0]
         if self._audio_available:
             try:
                 self._game_over_sting = pygame.mixer.Sound(
@@ -144,6 +155,17 @@ class GameApp:
                 self._catfood_sound.set_volume(self.preferences.sfx_volume * 0.75)
             except (pygame.error, FileNotFoundError):
                 self._catfood_sound = None
+            try:
+                self._rat_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "rat_threat.wav"))
+                )
+                self._rat_sound.set_volume(self.preferences.sfx_volume)
+                # reserve a channel so squeaks never steal or get stolen by other sfx
+                pygame.mixer.set_reserved(1)
+                self._rat_channel = pygame.mixer.Channel(0)
+            except (pygame.error, FileNotFoundError):
+                self._rat_sound = None
+                self._rat_channel = None
             pygame.mixer.music.set_volume(self.preferences.music_volume)
             pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
@@ -523,6 +545,7 @@ class GameApp:
     def _start_run(self) -> None:
         self.world = RunnerWorld()
         self._crossfading_to_fast = False
+        self._rat_squeak_timer = _RAT_SQUEAK_BY_HEARTS[3][0]
         self.screen = Screen.PLAYING
 
     def _update_playing(
@@ -547,6 +570,7 @@ class GameApp:
         )
         self.world.update(dt, collision_grace=grace)
         self._play_pickup_sounds()
+        self._update_rat_squeak(dt)
         self._check_gameplay_crossfade()
         if self.world.game_over:
             self.final_score = self.world.score
@@ -630,6 +654,24 @@ class GameApp:
         if action is not None:
             self._play_click()
         return action
+
+    def _update_rat_squeak(self, dt: float) -> None:
+        """Squeak on a timer that shortens as Pipin loses hearts.
+
+        Only called while playing, so the timer is frozen during pause.
+        """
+        if self._rat_sound is None or self._rat_channel is None:
+            return
+        hearts = self.world.player.hearts
+        if self.world.game_over or hearts <= 0:
+            return
+        interval, volume = _RAT_SQUEAK_BY_HEARTS[min(max(hearts, 1), 3)]
+        # after a hit, don't wait out the old, longer interval
+        self._rat_squeak_timer = min(self._rat_squeak_timer, interval) - dt
+        if self._rat_squeak_timer <= 0.0:
+            self._rat_channel.play(self._rat_sound)
+            self._rat_channel.set_volume(volume)
+            self._rat_squeak_timer = interval
 
     def _play_pickup_sounds(self) -> None:
         pickups, self.world.pickups = self.world.pickups, []

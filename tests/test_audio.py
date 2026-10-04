@@ -9,7 +9,13 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame
 
 from pusa_run.gameplay import ObjectKind, RunnerWorld
-from pusa_run.app import GameApp, Screen, _MENU_FADE_IN_MS, _MusicTrack
+from pusa_run.app import (
+    GameApp,
+    Screen,
+    _MENU_FADE_IN_MS,
+    _RAT_SQUEAK_BY_HEARTS,
+    _MusicTrack,
+)
 
 
 class AudioBehaviorTests(unittest.TestCase):
@@ -45,6 +51,51 @@ class AudioBehaviorTests(unittest.TestCase):
         app._play_pickup_sounds()
 
         app._catfood_sound.play.assert_not_called()
+
+    def _squeak_app(self, hearts: int, timer: float) -> GameApp:
+        app = GameApp.__new__(GameApp)
+        app._rat_sound = Mock()
+        app._rat_channel = Mock()
+        app._rat_squeak_timer = timer
+        app.world = RunnerWorld(seed=1)
+        app.world.player.hearts = hearts
+        return app
+
+    def test_rat_squeak_interval_and_volume_follow_hearts(self) -> None:
+        for hearts, (interval, volume) in _RAT_SQUEAK_BY_HEARTS.items():
+            app = self._squeak_app(hearts, timer=0.05)
+
+            app._update_rat_squeak(0.1)
+
+            app._rat_channel.play.assert_called_once_with(app._rat_sound)
+            app._rat_channel.set_volume.assert_called_once_with(volume)
+            self.assertEqual(app._rat_squeak_timer, interval)
+
+    def test_rat_does_not_squeak_before_timer_expires(self) -> None:
+        app = self._squeak_app(3, timer=2.0)
+
+        app._update_rat_squeak(0.5)
+
+        app._rat_channel.play.assert_not_called()
+        self.assertAlmostEqual(app._rat_squeak_timer, 1.5)
+
+    def test_losing_a_heart_shortens_the_wait(self) -> None:
+        app = self._squeak_app(1, timer=3.0)
+
+        app._update_rat_squeak(0.1)
+
+        self.assertAlmostEqual(app._rat_squeak_timer, 0.8)
+
+    def test_rat_is_silent_at_game_over_or_without_audio(self) -> None:
+        app = self._squeak_app(1, timer=0.0)
+        app.world.game_over = True
+        app._update_rat_squeak(0.1)
+        app._rat_channel.play.assert_not_called()
+
+        app = self._squeak_app(1, timer=0.0)
+        app._rat_sound = None
+        app._update_rat_squeak(0.1)
+        app._rat_channel.play.assert_not_called()
 
     @patch("pygame.mixer.music.stop")
     def test_game_over_sting_defers_menu_music(self, stop_music: Mock) -> None:
