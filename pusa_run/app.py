@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, auto
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
@@ -12,7 +12,7 @@ import pygame
 
 from .actions import Action, InputEvent
 from .assets import GameAssets
-from .constants import COLORS, FPS, GAME_TITLE, LOGICAL_HEIGHT, LOGICAL_SIZE, LOGICAL_WIDTH
+from .constants import COLORS, FPS, GAME_TITLE, LOGICAL_HEIGHT, LOGICAL_SIZE, LOGICAL_WIDTH, resource_path
 from .fonts import fitted_ui_font, ui_font
 from .gameplay import ObjectKind, RunnerWorld, TrackObject, draw_world
 from .pose_controller import CalibrationStatus, PoseController, PoseSnapshot
@@ -27,6 +27,20 @@ class Screen(str, Enum):
     PAUSED = "paused"
     SETTINGS = "settings"
     GAME_OVER = "game_over"
+
+
+class _MusicTrack(Enum):
+    """Which music file is currently loaded in the mixer."""
+    NONE = auto()
+    BG_THEME = auto()
+    RADAHALL_NORMAL = auto()
+    RADAHALL_FAST = auto()
+
+
+# Seconds of gameplay before crossfading to the fast track.
+_FAST_TRACK_THRESHOLD = 60.0
+# Fadeout duration in milliseconds for the crossfade.
+_CROSSFADE_MS = 1500
 
 
 @dataclass(slots=True)
@@ -53,6 +67,12 @@ class Button:
 class GameApp:
     def __init__(self) -> None:
         pygame.init()
+        # Attempt to initialise the audio mixer; fall back to silent mode if no audio device is available
+        try:
+            pygame.mixer.init()
+            self._audio_available = True
+        except pygame.error:
+            self._audio_available = False
         pygame.display.set_caption(GAME_TITLE)
         self.store = SaveStore()
         self.preferences: Preferences = self.store.load()
@@ -66,6 +86,21 @@ class GameApp:
         self.font_title = ui_font(70)
         self.font_medium = ui_font(32)
         self.font_small = ui_font(18)
+
+        # Music track paths
+        self._track_paths = {
+            _MusicTrack.BG_THEME: str(resource_path("assets", "sound", "bg_theme.ogg")),
+            _MusicTrack.RADAHALL_NORMAL: str(resource_path("assets", "sound", "radahall_normal.ogg")),
+            _MusicTrack.RADAHALL_FAST: str(resource_path("assets", "sound", "radahall_fast.ogg")),
+        }
+        self._current_track = _MusicTrack.NONE
+        self._music_playing = False
+        self._resume_track: _MusicTrack | None = None
+        self._resume_pos_s = 0.0
+        self._crossfading_to_fast = False
+        if self._audio_available:
+            pygame.mixer.music.set_volume(self.preferences.music_volume)
+            pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
         self.running = True
         self.screen = Screen.MENU
@@ -89,6 +124,88 @@ class GameApp:
         self.tutorial_done_timer = 0.0
         self.calibration_destination = Screen.TUTORIAL
         self.calibration_return_screen = Screen.MENU
+        # Start music for the initial menu screen
+        self._load_and_play(_MusicTrack.BG_THEME)
+
+    # ── Music helpers ───────────────────────────────────────────────
+
+    def _load_and_play(self, track: _MusicTrack, fadeout_ms: int = 0) -> None:
+        """Load *track* into the mixer and loop it. Reloads only when needed."""
+        if not self._audio_available:
+            return
+        if fadeout_ms and self._music_playing:
+            pygame.mixer.music.fadeout(fadeout_ms)
+        else:
+            pygame.mixer.music.stop()
+        if self._current_track != track:
+            pygame.mixer.music.load(self._track_paths[track])
+            self._current_track = track
+        pygame.mixer.music.play(loops=-1)
+        self._music_playing = True
+        self._crossfading_to_fast = False
+
+    def _handle_music_transition(self, prev: Screen, current: Screen) -> None:
+        """React to screen changes with the correct music track."""
+        if not self._audio_available:
+            return
+
+        # entering a menu screen
+        if current in (Screen.MENU, Screen.GAME_OVER):
+            if self._current_track != _MusicTrack.BG_THEME or not self._music_playing:
+                self._load_and_play(_MusicTrack.BG_THEME)
+            return
+
+        # entering gameplay
+        if current in (Screen.PLAYING, Screen.TUTORIAL):
+            if prev == Screen.PAUSED and self._resume_track is not None:
+                track, start_s = self._resume_track, self._resume_pos_s
+                self._resume_track = None
+                pygame.mixer.music.stop()
+                pygame.mixer.music.load(self._track_paths[track])
+                self._current_track = track
+                try:
+                    pygame.mixer.music.play(loops=-1, start=start_s)
+                except pygame.error:
+                    pygame.mixer.music.play(loops=-1)
+                self._music_playing = True
+                return
+            # fresh run or tutorial
+            self._load_and_play(_MusicTrack.RADAHALL_NORMAL)
+            return
+
+        # entering pause: switch to menu music, remembering where gameplay music was
+        if current == Screen.PAUSED:
+            if prev in (Screen.PLAYING, Screen.TUTORIAL):
+                track = self._current_track
+                if self._crossfading_to_fast:
+                    track = _MusicTrack.RADAHALL_FAST
+                    pos_s = 0.0
+                else:
+                    pos_s = max(pygame.mixer.music.get_pos(), 0) / 1000.0
+                self._crossfading_to_fast = False
+                self._resume_track = track
+                self._resume_pos_s = pos_s
+                self._load_and_play(_MusicTrack.BG_THEME)
+            return
+
+        # settings / calibration are overlay screens that don't need their own music
+
+    def _check_gameplay_crossfade(self) -> None:
+        # If the player survives long enough, crossfade to the fast track.
+        if not self._audio_available:
+            return
+        if (
+            self._current_track == _MusicTrack.RADAHALL_NORMAL
+            and not self._crossfading_to_fast
+            and self.world.elapsed >= _FAST_TRACK_THRESHOLD
+        ):
+            self._crossfading_to_fast = True
+            pygame.mixer.music.fadeout(_CROSSFADE_MS)
+
+    def _handle_music_end_event(self) -> None:
+        """Called when the mixer fires its end-of-track event (after fadeout)."""
+        if self._crossfading_to_fast:
+            self._load_and_play(_MusicTrack.RADAHALL_FAST)
 
     def _create_display(self) -> pygame.Surface:
         flags = pygame.RESIZABLE
@@ -107,7 +224,10 @@ class GameApp:
                 camera_actions = self.camera.poll_actions()
                 events = pygame.event.get()
                 self._handle_global_events(events)
+                prev_screen = self.screen
                 self._update(events, camera_actions, pose, dt, mouse_logical)
+                if self.screen != prev_screen:
+                    self._handle_music_transition(prev_screen, self.screen)
                 self._draw(pose, mouse_logical)
                 self._present()
             return 0
@@ -115,12 +235,17 @@ class GameApp:
             self.preferences.fullscreen = self.fullscreen
             self.store.save(self.preferences)
             self.camera.stop()
+            if self._audio_available:
+                pygame.mixer.music.stop()
             pygame.quit()
 
     def _handle_global_events(self, events: list[pygame.event.Event]) -> None:
+        music_end_type = pygame.USEREVENT + 1
         for event in events:
             if event.type == pygame.QUIT:
                 self.running = False
+            elif event.type == music_end_type:
+                self._handle_music_end_event()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
                 self.fullscreen = not self.fullscreen
                 self.preferences.fullscreen = self.fullscreen
@@ -316,6 +441,7 @@ class GameApp:
 
     def _start_run(self) -> None:
         self.world = RunnerWorld()
+        self._crossfading_to_fast = False
         self.screen = Screen.PLAYING
 
     def _update_playing(
@@ -339,6 +465,7 @@ class GameApp:
             and (now - pose.last_seen) <= 2.0
         )
         self.world.update(dt, collision_grace=grace)
+        self._check_gameplay_crossfade()
         if self.world.game_over:
             self.final_score = self.world.score
             self.new_high_score = self.final_score > self.preferences.high_score
