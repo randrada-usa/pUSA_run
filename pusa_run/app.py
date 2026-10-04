@@ -95,6 +95,8 @@ class GameApp:
         }
         self._current_track = _MusicTrack.NONE
         self._music_playing = False
+        self._resume_track: _MusicTrack | None = None
+        self._resume_pos_s = 0.0
         self._crossfading_to_fast = False
         if self._audio_available:
             pygame.mixer.music.set_volume(self.preferences.music_volume)
@@ -146,32 +148,50 @@ class GameApp:
         """React to screen changes with the correct music track."""
         if not self._audio_available:
             return
-        menu_screens = {Screen.MENU, Screen.SETTINGS, Screen.CALIBRATION, Screen.GAME_OVER}
 
-        # ── entering a menu screen ────────────────────────────────
-        if current in menu_screens:
+        # entering a menu screen
+        if current in (Screen.MENU, Screen.GAME_OVER):
             if self._current_track != _MusicTrack.BG_THEME or not self._music_playing:
                 self._load_and_play(_MusicTrack.BG_THEME)
             return
 
-        # ── entering gameplay (PLAYING / TUTORIAL) ────────────────
+        # entering gameplay
         if current in (Screen.PLAYING, Screen.TUTORIAL):
-            # Resume from pause – just unpause, don't restart the track.
-            if prev == Screen.PAUSED:
-                pygame.mixer.music.unpause()
+            if prev == Screen.PAUSED and self._resume_track is not None:
+                track, start_s = self._resume_track, self._resume_pos_s
+                self._resume_track = None
+                pygame.mixer.music.stop()
+                pygame.mixer.music.load(self._track_paths[track])
+                self._current_track = track
+                try:
+                    pygame.mixer.music.play(loops=-1, start=start_s)
+                except pygame.error:
+                    pygame.mixer.music.play(loops=-1)
                 self._music_playing = True
                 return
-            # Fresh run or tutorial – always start normal.
+            # fresh run or tutorial
             self._load_and_play(_MusicTrack.RADAHALL_NORMAL)
             return
 
-        # ── entering pause ────────────────────────────────────────
+        # entering pause: switch to menu music, remembering where gameplay music was
         if current == Screen.PAUSED:
-            pygame.mixer.music.pause()
+            if prev in (Screen.PLAYING, Screen.TUTORIAL):
+                track = self._current_track
+                if self._crossfading_to_fast:
+                    track = _MusicTrack.RADAHALL_FAST
+                    pos_s = 0.0
+                else:
+                    pos_s = max(pygame.mixer.music.get_pos(), 0) / 1000.0
+                self._crossfading_to_fast = False
+                self._resume_track = track
+                self._resume_pos_s = pos_s
+                self._load_and_play(_MusicTrack.BG_THEME)
             return
 
+        # settings / calibration are overlay screens that don't need their own music
+
     def _check_gameplay_crossfade(self) -> None:
-        """If the player survives long enough, crossfade to the fast track."""
+        # If the player survives long enough, crossfade to the fast track.
         if not self._audio_available:
             return
         if (
