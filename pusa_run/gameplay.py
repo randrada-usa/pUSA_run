@@ -246,9 +246,26 @@ def draw_world(
         else:
             _draw_fish(surface, item, assets)
 
-    _draw_rat(surface, world, assets)
+    _draw_player_shadow(surface, world.player, assets)
     _draw_player(surface, world.player, world.elapsed, assets)
+    _draw_rat(surface, world, assets)
     _draw_hud(surface, world, tracking_warning)
+
+
+def _draw_player_shadow(
+    surface: pygame.Surface,
+    player: Player,
+    assets: GameAssets | None,
+) -> None:
+    x = int(player.x)
+    # Pull the shadow slightly behind the supplied run frames' contact feet.
+    ground_y = PLAYER_Y + (40 if assets is not None else 48)
+    shadow_width = max(34, int(86 - player.jump_height * 0.18))
+    pygame.draw.ellipse(
+        surface,
+        COLORS["shadow"],
+        (x - shadow_width // 2, ground_y, shadow_width, 20),
+    )
 
 
 def _draw_player(
@@ -258,35 +275,27 @@ def _draw_player(
     assets: GameAssets | None,
 ) -> None:
     x = int(player.x)
-    ground_y = PLAYER_Y + 48
     y = int(PLAYER_Y - player.jump_height)
-    shadow_width = max(34, int(86 - player.jump_height * 0.18))
-    pygame.draw.ellipse(surface, COLORS["shadow"], (x - shadow_width // 2, ground_y, shadow_width, 20))
 
     blink = player.damage_timer > 0 and int(player.damage_timer * 10) % 2 == 0
     if blink:
         return
-    bob = int(math.sin(elapsed * 11.0) * 3) if player.jump_height <= 1 else 0
-    y += bob
     if assets is not None:
-        sprite = assets.player
+        frame_index = int(elapsed * 8.0) % len(assets.player_run_frames)
+        sprite = assets.player_run_frames[frame_index]
         sprite_rect = sprite.get_rect(midbottom=(x, y + 50))
+        if player.shield_timer > 0:
+            shield_rect = assets.shield.get_rect(center=sprite_rect.center)
+            surface.blit(assets.shield, shield_rect)
         surface.blit(sprite, sprite_rect)
         if player.hurt_flash > 0:
             flash = sprite.copy()
             flash.fill((255, 80, 80, 100), special_flags=pygame.BLEND_RGBA_ADD)
             surface.blit(flash, sprite_rect)
-        if player.shield_timer > 0:
-            radius = max(sprite_rect.width, sprite_rect.height) // 2 + 10
-            pygame.draw.circle(
-                surface,
-                (93, 210, 236),
-                sprite_rect.center,
-                radius,
-                4,
-            )
         return
 
+    bob = int(math.sin(elapsed * 11.0) * 3) if player.jump_height <= 1 else 0
+    y += bob
     body_color = (235, 137, 61) if player.hurt_flash <= 0 else COLORS["red"]
     pygame.draw.ellipse(surface, body_color, (x - 38, y - 24, 76, 72))
     pygame.draw.circle(surface, body_color, (x, y - 38), 42)
@@ -309,10 +318,11 @@ def _draw_rat(
     assets: GameAssets | None,
 ) -> None:
     health_lost = MAX_HEARTS - world.player.hearts
-    rat_y = 705 - health_lost * 38
-    x = int(world.player.x + 72)
+    rat_y = 753 - health_lost * 38
+    x = int(world.player.x)
     if assets is not None:
-        sprite = assets.rat
+        frame_index = int(world.elapsed * 8.0) % len(assets.rat_run_frames)
+        sprite = assets.rat_run_frames[frame_index]
         surface.blit(sprite, sprite.get_rect(midbottom=(x, rat_y)))
         return
     pygame.draw.ellipse(surface, (107, 105, 117), (x - 30, rat_y - 40, 60, 48))

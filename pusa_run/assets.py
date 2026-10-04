@@ -115,9 +115,35 @@ class GameAssets:
             _crop_alpha(_load("pipin.png")),
             126,
         )
+        # Keep each run frame on its original 128 px canvas so Pipin's feet
+        # stay anchored while the frames alternate.
+        self.player_run_frames = tuple(
+            scale_to_height(
+                _load_path(
+                    resource_path("assets", "images", "pipin_sprites", filename)
+                ),
+                146,
+            )
+            for filename in ("3.png", "4.png")
+        )
+        self.shield = scale_to_height(
+            _load("shield.png"),
+            215,
+        )
         self.rat = scale_to_height(
             _crop_alpha(_load("rat.png")),
             96,
+        )
+        # Preserve the shared 160 px canvas so the rat stays grounded while
+        # its two running poses alternate.
+        self.rat_run_frames = tuple(
+            scale_to_height(
+                _load_path(
+                    resource_path("assets", "images", "rat_sprites", filename)
+                ),
+                112,
+            )
+            for filename in ("1.png", "2.png")
         )
         self.fish = scale_to_height(
             _crop_alpha(_load("fish_item.png")),
