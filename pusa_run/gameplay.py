@@ -124,13 +124,18 @@ class RunnerWorld:
     def score(self) -> int:
         return int(self.distance) + self.collectible_score
 
-    def apply_action(self, action: Action) -> bool:
-        """Apply *action*; return True if it started a new jump."""
+    def apply_action(self, action: Action) -> str | None:
+        """Apply *action*; return "jump" or "dodge" if it caused one, else None."""
         if self.game_over:
-            return False
+            return None
         was_jumping = self.player.jump_velocity > 0.0
+        lane_before = self.player.lane
         self.player.apply(action)
-        return action == Action.JUMP and not was_jumping and self.player.jump_velocity > 0.0
+        if action == Action.JUMP and not was_jumping and self.player.jump_velocity > 0.0:
+            return "jump"
+        if self.player.lane != lane_before:
+            return "dodge"
+        return None
 
     def update(self, dt: float, collision_grace: bool = False) -> None:
         if self.game_over:
