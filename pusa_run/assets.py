@@ -166,12 +166,12 @@ class GameAssets:
                         resource_path("assets", "images", "obstacles", filename)
                     )
                 ),
-                125,
+                height,
             )
-            for filename in (
-                "obstkl_books.png",
-                "obstkl_table.png",
-                "obstkl_trash.png",
+            for filename, height in (
+                ("obstkl_books.png", 125),
+                ("obstkl_table.png", 145),
+                ("obstkl_trash.png", 145),
             )
         )
 
