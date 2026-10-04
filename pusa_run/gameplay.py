@@ -118,6 +118,7 @@ class RunnerWorld:
         self.elapsed = 0.0
         self.distance = 0.0
         self.collectible_score = 0
+        self.hits_taken = 0  
         self.pickups: list[ObjectKind] = []  
         self.spawn_timer = 1.35
         self.scroll_offset = 0.0
@@ -229,6 +230,7 @@ class RunnerWorld:
                     damaged = self.player.take_damage()
                     if damaged:
                         self.hit_slow_timer = 0.8
+                        self.hits_taken += 1
                     if damaged or consumed_shield:
                         item.collected = True
             elif vertical_distance <= 62:

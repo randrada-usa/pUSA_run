@@ -52,6 +52,18 @@ class AudioBehaviorTests(unittest.TestCase):
 
         app._catfood_sound.play.assert_not_called()
 
+    def test_hit_sound_plays_once_and_clears_counter(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._hit_sound = Mock()
+        app.world = RunnerWorld(seed=1)
+        app.world.hits_taken = 1
+
+        app._play_hit_sound()
+        app._play_hit_sound()
+
+        app._hit_sound.play.assert_called_once_with()
+        self.assertEqual(app.world.hits_taken, 0)
+
     def _squeak_app(self, hearts: int, timer: float) -> GameApp:
         app = GameApp.__new__(GameApp)
         app._rat_sound = Mock()

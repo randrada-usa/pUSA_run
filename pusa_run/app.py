@@ -116,6 +116,7 @@ class GameApp:
         self._jump_sound = None
         self._dodge_sound = None
         self._catfood_sound = None
+        self._hit_sound = None
         self._rat_sound = None
         self._rat_channel = None
         self._rat_squeak_timer = _RAT_SQUEAK_BY_HEARTS[3][0]
@@ -155,6 +156,13 @@ class GameApp:
                 self._catfood_sound.set_volume(self.preferences.sfx_volume * 0.75)
             except (pygame.error, FileNotFoundError):
                 self._catfood_sound = None
+            try:
+                self._hit_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "obstacle_hit.wav"))
+                )
+                self._hit_sound.set_volume(self.preferences.sfx_volume)
+            except (pygame.error, FileNotFoundError):
+                self._hit_sound = None
             try:
                 self._rat_sound = pygame.mixer.Sound(
                     str(resource_path("assets", "sound", "rat_threat.wav"))
@@ -570,6 +578,7 @@ class GameApp:
         )
         self.world.update(dt, collision_grace=grace)
         self._play_pickup_sounds()
+        self._play_hit_sound()
         self._update_rat_squeak(dt)
         self._check_gameplay_crossfade()
         if self.world.game_over:
@@ -672,6 +681,11 @@ class GameApp:
             self._rat_channel.play(self._rat_sound)
             self._rat_channel.set_volume(volume)
             self._rat_squeak_timer = interval
+
+    def _play_hit_sound(self) -> None:
+        hits, self.world.hits_taken = self.world.hits_taken, 0
+        if hits and self._hit_sound is not None:
+            self._hit_sound.play()
 
     def _play_pickup_sounds(self) -> None:
         pickups, self.world.pickups = self.world.pickups, []

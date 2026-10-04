@@ -139,6 +139,28 @@ class PlayerTests(unittest.TestCase):
         world._handle_interactions(collision_grace=False)
         self.assertEqual(world.player.hearts, 2)
 
+    def test_obstacle_damage_is_recorded_once_during_invulnerability(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.objects = [
+            TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92),
+            TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92),
+        ]
+        world._handle_interactions(collision_grace=False)
+        self.assertEqual(world.hits_taken, 1)
+
+    def test_shielded_or_dodged_obstacle_is_not_a_hit(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.player.shield_timer = 5.0
+        world.objects = [TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92)]
+        world._handle_interactions(collision_grace=False)
+        self.assertEqual(world.hits_taken, 0)
+
+        world = RunnerWorld(seed=1)
+        world.player.jump_height = 100.0
+        world.objects = [TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92)]
+        world._handle_interactions(collision_grace=False)
+        self.assertEqual(world.hits_taken, 0)
+
     def test_cat_food_pickup_is_recorded_once(self) -> None:
         world = RunnerWorld(seed=1)
         world.objects = [
