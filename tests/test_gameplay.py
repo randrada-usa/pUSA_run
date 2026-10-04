@@ -7,9 +7,17 @@ from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
+import pygame
+
 from pusa_run.actions import Action
 from pusa_run.difficulty import difficulty_at
-from pusa_run.gameplay import ObjectKind, RunnerWorld, TrackObject
+from pusa_run.gameplay import (
+    ObjectKind,
+    RunnerWorld,
+    TrackObject,
+    _hurt_flash_sprite,
+    _rat_dodge_offset,
+)
 from pusa_run.save_data import Preferences, SaveStore
 
 
@@ -123,6 +131,20 @@ class PlayerTests(unittest.TestCase):
         world._handle_interactions(collision_grace=False)
         self.assertEqual(world.player.hearts, 2)
 
+    def test_rat_smoothly_retreats_after_heart_is_restored(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.player.hearts = 1
+        world.rat_y = 677.0
+        world.player.hearts = 2
+
+        world._update_rat_position(0.1)
+        self.assertGreater(world.rat_y, 677.0)
+        self.assertLess(world.rat_y, 715.0)
+
+        for _ in range(10):
+            world._update_rat_position(0.1)
+        self.assertEqual(world.rat_y, 715.0)
+
     def test_spawn_pattern_always_leaves_a_lane_open(self) -> None:
         world = RunnerWorld(seed=4)
         hard = difficulty_at(10_000)
@@ -135,6 +157,40 @@ class PlayerTests(unittest.TestCase):
                 if item.kind == ObjectKind.OBSTACLE
             }
             self.assertLessEqual(len(blocked), 2)
+
+    def test_spawned_obstacles_use_all_art_variants(self) -> None:
+        world = RunnerWorld(seed=4)
+        hard = difficulty_at(10_000)
+        variants = set()
+        for _ in range(100):
+            world.objects.clear()
+            world._spawn_pattern(hard)
+            variants.update(
+                item.variant
+                for item in world.objects
+                if item.kind == ObjectKind.OBSTACLE
+            )
+        self.assertEqual(variants, {0, 1, 2})
+
+    def test_rat_dodges_obstacles_in_its_lane(self) -> None:
+        world = RunnerWorld(seed=1)
+        rat_y = 715.0
+        world.objects = [
+            TrackObject(ObjectKind.OBSTACLE, world.player.lane, rat_y - 48, 92)
+        ]
+        self.assertGreater(abs(_rat_dodge_offset(world, rat_y)), 115.0)
+
+        world.objects[0].lane = 0
+        self.assertEqual(_rat_dodge_offset(world, rat_y), 0.0)
+
+    def test_hurt_flash_preserves_transparent_pixels(self) -> None:
+        sprite = pygame.Surface((2, 2), pygame.SRCALPHA)
+        sprite.set_at((1, 1), (100, 100, 100, 255))
+
+        flash = _hurt_flash_sprite(sprite)
+
+        self.assertEqual(flash.get_at((0, 0)).a, 0)
+        self.assertEqual(flash.get_at((1, 1)).a, 255)
 
 
 class SaveTests(unittest.TestCase):

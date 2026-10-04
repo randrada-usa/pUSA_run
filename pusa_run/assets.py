@@ -126,6 +126,12 @@ class GameAssets:
             )
             for filename in ("3.png", "4.png")
         )
+        self.player_jump = scale_to_height(
+            _load_path(
+                resource_path("assets", "images", "pipin_sprites", "jump.png")
+            ),
+            146,
+        )
         self.shield = scale_to_height(
             _load("shield.png"),
             215,
@@ -152,6 +158,21 @@ class GameAssets:
         self.cat_food = scale_to_height(
             _crop_alpha(_load("catfood_item.png")),
             72,
+        )
+        self.obstacles = tuple(
+            scale_to_height(
+                _crop_alpha(
+                    _load_path(
+                        resource_path("assets", "images", "obstacles", filename)
+                    )
+                ),
+                104,
+            )
+            for filename in (
+                "obstkl_books.png",
+                "obstkl_table.png",
+                "obstkl_trash.png",
+            )
         )
 
         self.menu_buttons: dict[str, dict[str, pygame.Surface]] = {}
