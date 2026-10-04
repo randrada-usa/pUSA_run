@@ -105,6 +105,7 @@ class GameApp:
         self._menu_music_pending = False
         self._sting_ended_at: int | None = None
         self._click_sound = None
+        self._jump_sound = None
         if self._audio_available:
             try:
                 self._game_over_sting = pygame.mixer.Sound(
@@ -120,6 +121,13 @@ class GameApp:
                 self._click_sound.set_volume(self.preferences.sfx_volume)
             except (pygame.error, FileNotFoundError):
                 self._click_sound = None
+            try:
+                self._jump_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "jump.wav"))
+                )
+                self._jump_sound.set_volume(self.preferences.sfx_volume * 0.75)
+            except (pygame.error, FileNotFoundError):
+                self._jump_sound = None
             pygame.mixer.music.set_volume(self.preferences.music_volume)
             pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
@@ -476,7 +484,8 @@ class GameApp:
         if self.tutorial_index < len(self.tutorial_actions):
             expected = self.tutorial_actions[self.tutorial_index]
             for item in actions:
-                self.tutorial_world.apply_action(item.action)
+                if self.tutorial_world.apply_action(item.action):
+                    self._play_jump()
                 if item.action in expected:
                     self.tutorial_index += 1
                     if self.tutorial_index == 2:
@@ -513,7 +522,8 @@ class GameApp:
                 self.screen = Screen.PAUSED
                 return
         for item in actions:
-            self.world.apply_action(item.action)
+            if self.world.apply_action(item.action):
+                self._play_jump()
 
         now = time.monotonic()
         grace = (
@@ -596,6 +606,10 @@ class GameApp:
                         self._play_click()
                         return button.action
         return None
+
+    def _play_jump(self) -> None:
+        if self._jump_sound is not None:
+            self._jump_sound.play()
 
     def _play_click(self) -> None:
         if self._click_sound is not None:
