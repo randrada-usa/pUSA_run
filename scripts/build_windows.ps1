@@ -13,6 +13,8 @@ $arguments = @(
     "--windowed"
     "--name"
     "pUSA Run"
+    "--icon"
+    "assets\images\pUSArun_icon.ico"
     "--add-data"
     "models;models"
     "--add-data"

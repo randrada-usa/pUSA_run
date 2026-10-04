@@ -94,8 +94,8 @@ class GameAssets:
             _crop_alpha(_load("rat.png")),
             270,
         )
-        self.app_art = _crop_alpha(_load("app_art.png"))
-        self.app_icon = pygame.transform.scale(self.app_art, (64, 64))
+        self.app_art = _crop_alpha(_load("pUSArun_icon.png"))
+        self.app_icon = pygame.transform.smoothscale(self.app_art, (64, 64))
         self.high_score_panel = scale_to_width(
             _crop_alpha(_load("high_score_panel.png")),
             290,
