@@ -23,6 +23,10 @@ from .fonts import fitted_ui_font, ui_font
 if TYPE_CHECKING:
     from .assets import GameAssets
 
+RAT_BASE_Y = 753.0
+RAT_DISTANCE_STEP = 38.0
+RAT_TRANSITION_SPEED = 140.0
+
 
 class ObjectKind(str, Enum):
     OBSTACLE = "obstacle"
@@ -36,6 +40,7 @@ class TrackObject:
     lane: int
     y: float
     size: int
+    variant: int = 0
     collected: bool = False
 
     @property
@@ -117,6 +122,7 @@ class RunnerWorld:
         self.scroll_offset = 0.0
         self.background_scroll = 0.0
         self.hit_slow_timer = 0.0
+        self.rat_y = RAT_BASE_Y
         self.game_over = False
         self.last_difficulty = difficulty_at(0.0)
 
@@ -169,8 +175,21 @@ class RunnerWorld:
             self.spawn_timer = max(0.78, difficulty.spawn_interval + jitter)
 
         self._handle_interactions(collision_grace)
+        self._update_rat_position(dt)
         self.objects = [item for item in self.objects if item.y < 800 and not item.collected]
         self.game_over = self.player.hearts <= 0
+
+    def _update_rat_position(self, dt: float) -> None:
+        target_y = RAT_BASE_Y - (MAX_HEARTS - self.player.hearts) * RAT_DISTANCE_STEP
+        if self.player.hearts <= 0:
+            self.rat_y = target_y
+            return
+        distance = target_y - self.rat_y
+        max_step = RAT_TRANSITION_SPEED * dt
+        if abs(distance) <= max_step:
+            self.rat_y = target_y
+        else:
+            self.rat_y += math.copysign(max_step, distance)
 
     def _spawn_pattern(self, difficulty: DifficultySnapshot) -> None:
         lanes = [0, 1, 2]
@@ -180,7 +199,15 @@ class RunnerWorld:
             second = self.random.choice([lane for lane in lanes if lane != first])
             blocked.append(second)
         for lane in blocked:
-            self.objects.append(TrackObject(ObjectKind.OBSTACLE, lane, -70.0, 92))
+            self.objects.append(
+                TrackObject(
+                    ObjectKind.OBSTACLE,
+                    lane,
+                    -70.0,
+                    92,
+                    variant=self.random.randrange(3),
+                )
+            )
 
         free = [lane for lane in lanes if lane not in blocked]
         item_roll = self.random.random()
@@ -249,7 +276,7 @@ def draw_world(
 
     for item in sorted(world.objects, key=lambda entity: entity.y):
         if item.kind == ObjectKind.OBSTACLE:
-            _draw_obstacle(surface, item)
+            _draw_obstacle(surface, item, assets)
         elif item.kind == ObjectKind.CAT_FOOD:
             _draw_cat_food(surface, item, assets)
         else:
@@ -290,16 +317,18 @@ def _draw_player(
     if blink:
         return
     if assets is not None:
-        frame_index = int(elapsed * 8.0) % len(assets.player_run_frames)
-        sprite = assets.player_run_frames[frame_index]
+        if player.jump_height > 1.0:
+            sprite = assets.player_jump
+        else:
+            frame_index = int(elapsed * 8.0) % len(assets.player_run_frames)
+            sprite = assets.player_run_frames[frame_index]
         sprite_rect = sprite.get_rect(midbottom=(x, y + 50))
         if player.shield_timer > 0:
             shield_rect = assets.shield.get_rect(center=sprite_rect.center)
             surface.blit(assets.shield, shield_rect)
         surface.blit(sprite, sprite_rect)
         if player.hurt_flash > 0:
-            flash = sprite.copy()
-            flash.fill((255, 80, 80, 100), special_flags=pygame.BLEND_RGBA_ADD)
+            flash = _hurt_flash_sprite(sprite)
             surface.blit(flash, sprite_rect)
         return
 
@@ -321,19 +350,38 @@ def _draw_player(
         pygame.draw.circle(surface, (93, 210, 236), (x, y - 10), radius, 4)
 
 
+def _hurt_flash_sprite(sprite: pygame.Surface) -> pygame.Surface:
+    """Tint Pipin red without making transparent canvas pixels visible."""
+    flash = sprite.copy()
+    flash.fill((255, 80, 80, 0), special_flags=pygame.BLEND_RGBA_ADD)
+    return flash
+
+
 def _draw_rat(
     surface: pygame.Surface,
     world: RunnerWorld,
     assets: GameAssets | None,
 ) -> None:
-    health_lost = MAX_HEARTS - world.player.hearts
-    rat_y = 753 - health_lost * 38
-    x = int(world.player.x)
+    rat_y = world.rat_y
+    x = int(world.player.x + _rat_dodge_offset(world, rat_y))
     if assets is not None:
         frame_index = int(world.elapsed * 8.0) % len(assets.rat_run_frames)
         sprite = assets.rat_run_frames[frame_index]
+        shadow_width = max(48, round(sprite.get_width() * 0.68))
+        shadow_height = max(12, round(sprite.get_height() * 0.13))
+        pygame.draw.ellipse(
+            surface,
+            COLORS["shadow"],
+            (
+                x - shadow_width // 2,
+                round(rat_y) - 10,
+                shadow_width,
+                shadow_height,
+            ),
+        )
         surface.blit(sprite, sprite.get_rect(midbottom=(x, rat_y)))
         return
+    pygame.draw.ellipse(surface, COLORS["shadow"], (x - 30, rat_y - 8, 60, 12))
     pygame.draw.ellipse(surface, (107, 105, 117), (x - 30, rat_y - 40, 60, 48))
     pygame.draw.circle(surface, (125, 123, 137), (x, rat_y - 48), 28)
     pygame.draw.circle(surface, (235, 158, 177), (x - 18, rat_y - 66), 10)
@@ -342,8 +390,44 @@ def _draw_rat(
     pygame.draw.circle(surface, COLORS["dark"], (x + 9, rat_y - 50), 4)
 
 
-def _draw_obstacle(surface: pygame.Surface, item: TrackObject) -> None:
+def _rat_dodge_offset(world: RunnerWorld, rat_y: float) -> float:
+    """Return a smooth sideways dodge around obstacles in the rat's lane."""
+    approach_distance = 150.0
+    pass_distance = 55.0
+    arc_span = approach_distance + pass_distance
+    dodge_offset = 0.0
+    for item in world.objects:
+        if (
+            item.kind != ObjectKind.OBSTACLE
+            or item.collected
+            or item.lane != world.player.lane
+        ):
+            continue
+        progress = (item.y - (rat_y - approach_distance)) / arc_span
+        if 0.0 <= progress <= 1.0:
+            strength = math.sin(math.pi * progress) * 120.0
+            if world.player.lane == 0:
+                direction = 1.0
+            elif world.player.lane == 2:
+                direction = -1.0
+            else:
+                direction = -1.0 if item.variant % 2 == 0 else 1.0
+            candidate = direction * strength
+            if abs(candidate) > abs(dodge_offset):
+                dodge_offset = candidate
+    return dodge_offset
+
+
+def _draw_obstacle(
+    surface: pygame.Surface,
+    item: TrackObject,
+    assets: GameAssets | None,
+) -> None:
     rect = item.rect
+    if assets is not None:
+        sprite = assets.obstacles[item.variant % len(assets.obstacles)]
+        surface.blit(sprite, sprite.get_rect(midbottom=(rect.centerx, rect.bottom)))
+        return
     pygame.draw.rect(surface, (119, 76, 48), rect, border_radius=8)
     pygame.draw.rect(surface, (183, 124, 65), rect.inflate(-10, -12), border_radius=5)
     for offset in (20, 44, 68):

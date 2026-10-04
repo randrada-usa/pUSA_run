@@ -30,6 +30,19 @@ def _crop_alpha(surface: pygame.Surface) -> pygame.Surface:
     return surface.subsurface(bounds).copy()
 
 
+def _align_alpha_bottom(surface: pygame.Surface, padding: int = 1) -> pygame.Surface:
+    """Shift visible pixels to a shared bottom baseline without resizing them."""
+    bounds = surface.get_bounding_rect(min_alpha=1)
+    if bounds.width <= 0 or bounds.height <= 0:
+        return surface
+    shift_y = surface.get_height() - padding - bounds.bottom
+    if shift_y == 0:
+        return surface
+    aligned = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+    aligned.blit(surface, (0, shift_y))
+    return aligned
+
+
 def scale_to_width(surface: pygame.Surface, width: int) -> pygame.Surface:
     height = max(1, round(surface.get_height() * width / surface.get_width()))
     return pygame.transform.scale(surface, (width, height))
@@ -119,12 +132,20 @@ class GameAssets:
         # stay anchored while the frames alternate.
         self.player_run_frames = tuple(
             scale_to_height(
-                _load_path(
-                    resource_path("assets", "images", "pipin_sprites", filename)
+                _align_alpha_bottom(
+                    _load_path(
+                        resource_path("assets", "images", "pipin_sprites", filename)
+                    )
                 ),
                 146,
             )
-            for filename in ("3.png", "4.png")
+            for filename in ("4.png", "3.png")
+        )
+        self.player_jump = scale_to_height(
+            _load_path(
+                resource_path("assets", "images", "pipin_sprites", "jump.png")
+            ),
+            146,
         )
         self.shield = scale_to_height(
             _load("shield.png"),
@@ -152,6 +173,21 @@ class GameAssets:
         self.cat_food = scale_to_height(
             _crop_alpha(_load("catfood_item.png")),
             72,
+        )
+        self.obstacles = tuple(
+            scale_to_height(
+                _crop_alpha(
+                    _load_path(
+                        resource_path("assets", "images", "obstacles", filename)
+                    )
+                ),
+                height,
+            )
+            for filename, height in (
+                ("obstkl_books.png", 125),
+                ("obstkl_table.png", 145),
+                ("obstkl_trash.png", 145),
+            )
         )
 
         self.menu_buttons: dict[str, dict[str, pygame.Surface]] = {}
