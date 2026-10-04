@@ -8,6 +8,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
 
+from pusa_run.gameplay import ObjectKind, RunnerWorld
 from pusa_run.app import GameApp, Screen, _MENU_FADE_IN_MS, _MusicTrack
 
 
@@ -23,6 +24,27 @@ class AudioBehaviorTests(unittest.TestCase):
 
         app._jump_sound.play.assert_called_once_with()
         app._dodge_sound.play.assert_called_once_with()
+
+    def test_cat_food_pickup_plays_sound_and_clears_queue(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._catfood_sound = Mock()
+        app.world = RunnerWorld(seed=1)
+        app.world.pickups = [ObjectKind.FISH, ObjectKind.CAT_FOOD]
+
+        app._play_pickup_sounds()
+
+        app._catfood_sound.play.assert_called_once_with()
+        self.assertEqual(app.world.pickups, [])
+
+    def test_fish_pickup_does_not_play_cat_food_sound(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._catfood_sound = Mock()
+        app.world = RunnerWorld(seed=1)
+        app.world.pickups = [ObjectKind.FISH]
+
+        app._play_pickup_sounds()
+
+        app._catfood_sound.play.assert_not_called()
 
     @patch("pygame.mixer.music.stop")
     def test_game_over_sting_defers_menu_music(self, stop_music: Mock) -> None:

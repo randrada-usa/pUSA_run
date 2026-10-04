@@ -139,6 +139,22 @@ class PlayerTests(unittest.TestCase):
         world._handle_interactions(collision_grace=False)
         self.assertEqual(world.player.hearts, 2)
 
+    def test_cat_food_pickup_is_recorded_once(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.objects = [
+            TrackObject(ObjectKind.CAT_FOOD, world.player.lane, 570, 58)
+        ]
+        world._handle_interactions(collision_grace=False)
+        world._handle_interactions(collision_grace=False)
+        self.assertEqual(world.pickups, [ObjectKind.CAT_FOOD])
+
+    def test_missed_cat_food_is_not_recorded(self) -> None:
+        world = RunnerWorld(seed=1)
+        other_lane = (world.player.lane + 1) % 3
+        world.objects = [TrackObject(ObjectKind.CAT_FOOD, other_lane, 570, 58)]
+        world._handle_interactions(collision_grace=False)
+        self.assertEqual(world.pickups, [])
+
     def test_rat_smoothly_retreats_after_heart_is_restored(self) -> None:
         world = RunnerWorld(seed=1)
         world.player.hearts = 1

@@ -118,6 +118,7 @@ class RunnerWorld:
         self.elapsed = 0.0
         self.distance = 0.0
         self.collectible_score = 0
+        self.pickups: list[ObjectKind] = []  
         self.spawn_timer = 1.35
         self.scroll_offset = 0.0
         self.background_scroll = 0.0
@@ -232,6 +233,7 @@ class RunnerWorld:
                         item.collected = True
             elif vertical_distance <= 62:
                 item.collected = True
+                self.pickups.append(item.kind)
                 if item.kind == ObjectKind.CAT_FOOD:
                     self.player.shield_timer = SHIELD_SECONDS
                     self.collectible_score += 100

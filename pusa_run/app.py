@@ -107,6 +107,7 @@ class GameApp:
         self._click_sound = None
         self._jump_sound = None
         self._dodge_sound = None
+        self._catfood_sound = None
         if self._audio_available:
             try:
                 self._game_over_sting = pygame.mixer.Sound(
@@ -136,6 +137,13 @@ class GameApp:
                 self._dodge_sound.set_volume(self.preferences.sfx_volume * 0.75)
             except (pygame.error, FileNotFoundError):
                 self._dodge_sound = None
+            try:
+                self._catfood_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "catfood_pickup.wav"))
+                )
+                self._catfood_sound.set_volume(self.preferences.sfx_volume * 0.75)
+            except (pygame.error, FileNotFoundError):
+                self._catfood_sound = None
             pygame.mixer.music.set_volume(self.preferences.music_volume)
             pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
@@ -538,6 +546,7 @@ class GameApp:
             and (now - pose.last_seen) <= 2.0
         )
         self.world.update(dt, collision_grace=grace)
+        self._play_pickup_sounds()
         self._check_gameplay_crossfade()
         if self.world.game_over:
             self.final_score = self.world.score
@@ -621,6 +630,11 @@ class GameApp:
         if action is not None:
             self._play_click()
         return action
+
+    def _play_pickup_sounds(self) -> None:
+        pickups, self.world.pickups = self.world.pickups, []
+        if ObjectKind.CAT_FOOD in pickups and self._catfood_sound is not None:
+            self._catfood_sound.play()
 
     def _play_move_sound(self, move: str | None) -> None:
         sound = {"jump": self._jump_sound, "dodge": self._dodge_sound}.get(move)
