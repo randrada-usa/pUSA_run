@@ -94,9 +94,19 @@ class GameAssets:
             _crop_alpha(_load("home_pipin.png")),
             180,
         )
+        self.home_pipin_flipped = pygame.transform.flip(
+            self.home_pipin,
+            True,
+            False,
+        )
         self.home_rat = scale_to_height(
             _crop_alpha(_load("home_rat.png")),
             132,
+        )
+        self.home_rat_flipped = pygame.transform.flip(
+            self.home_rat,
+            True,
+            False,
         )
         self.app_art = _crop_alpha(_load("pUSArun_icon.png"))
         self.app_icon = pygame.transform.smoothscale(self.app_art, (64, 64))

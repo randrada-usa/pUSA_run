@@ -8,7 +8,16 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
 
-from pusa_run.app import Button, GameApp, Screen, _MusicTrack
+from pusa_run.app import (
+    Button,
+    GameApp,
+    Screen,
+    _MENU_CHASE_EDGE_X,
+    _MENU_CHASE_GAP,
+    _MENU_CHASE_WAIT_SECONDS,
+    _MusicTrack,
+)
+from pusa_run.constants import LOGICAL_WIDTH
 from pusa_run.gameplay import RunnerWorld
 from pusa_run.pose_controller import CalibrationStatus, PoseSnapshot
 
@@ -82,6 +91,36 @@ class MenuButtonTests(unittest.TestCase):
         actions = [button.action for button in GameApp._pause_buttons(None)]
 
         self.assertEqual(actions, ["restart", "resume", "settings", "menu"])
+
+    def test_menu_chase_waits_then_returns_from_the_exit_side(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._reset_menu_chase()
+        app._menu_chase_x = (
+            LOGICAL_WIDTH + _MENU_CHASE_EDGE_X + _MENU_CHASE_GAP
+        )
+
+        app._update_menu_chase(0.0)
+        self.assertEqual(app._menu_chase_wait, _MENU_CHASE_WAIT_SECONDS)
+        self.assertEqual(app._menu_chase_direction, 1)
+
+        app._update_menu_chase(_MENU_CHASE_WAIT_SECONDS)
+        self.assertEqual(app._menu_chase_direction, -1)
+        self.assertEqual(
+            app._menu_chase_x,
+            LOGICAL_WIDTH + _MENU_CHASE_EDGE_X,
+        )
+
+    def test_menu_chase_alternates_back_to_the_left_edge(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._reset_menu_chase()
+        app._menu_chase_direction = -1
+        app._menu_chase_x = -_MENU_CHASE_EDGE_X - _MENU_CHASE_GAP
+
+        app._update_menu_chase(0.0)
+        app._update_menu_chase(_MENU_CHASE_WAIT_SECONDS)
+
+        self.assertEqual(app._menu_chase_direction, 1)
+        self.assertEqual(app._menu_chase_x, -_MENU_CHASE_EDGE_X)
 
     def test_restart_resets_run_and_does_not_resume_old_music_position(self) -> None:
         app = GameApp.__new__(GameApp)

@@ -24,6 +24,8 @@ def main() -> None:
         app = GameApp()
     try:
         app.preferences.high_score = 4_459
+        app._menu_chase_x = 968.0
+        app._menu_chase_elapsed = 1.0
         app._draw_menu((-1, -1))
         pygame.image.save(app.canvas, output / "menu.png")
 
@@ -36,6 +38,12 @@ def main() -> None:
         ):
             app._draw_menu((640, 380))
         pygame.image.save(app.canvas, output / "menu_pressed.png")
+
+        app._menu_chase_direction = -1
+        app._menu_chase_x = 312.0
+        app._menu_chase_elapsed = 2.0
+        app._draw_menu((-1, -1))
+        pygame.image.save(app.canvas, output / "menu_reverse.png")
 
         world = RunnerWorld(seed=12)
         world.elapsed = 18.0

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import sys
 import time
@@ -43,6 +44,11 @@ _FAST_TRACK_THRESHOLD = 60.0
 _CROSSFADE_MS = 1500
 _STING_GAP_MS = 700  # silence between the game over sting and the menu theme
 _MENU_FADE_IN_MS = 1500
+
+_MENU_CHASE_SPEED = 280.0
+_MENU_CHASE_GAP = 160.0
+_MENU_CHASE_WAIT_SECONDS = 3.5
+_MENU_CHASE_EDGE_X = 100.0
 
 # Rat squeak by remaining hearts: (seconds between squeaks, volume 0-1).
 # The rat gets closer as hearts drop, so squeaks get faster and louder.
@@ -215,6 +221,7 @@ class GameApp:
         self.tutorial_done_timer = 0.0
         self.calibration_destination = Screen.TUTORIAL
         self.calibration_return_screen = Screen.MENU
+        self._reset_menu_chase()
         # Start music for the initial menu screen
         self._load_and_play(_MusicTrack.BG_THEME)
 
@@ -353,6 +360,8 @@ class GameApp:
                 prev_screen = self.screen
                 self._update(events, camera_actions, pose, dt, mouse_logical)
                 if self.screen != prev_screen:
+                    if self.screen == Screen.MENU:
+                        self._reset_menu_chase()
                     self._handle_music_transition(prev_screen, self.screen)
                 self._update_sting_handoff()
                 self._draw(pose, mouse_logical)
@@ -408,7 +417,7 @@ class GameApp:
         actions = self._keyboard_actions(events) + camera_actions
 
         if self.screen == Screen.MENU:
-            self._update_menu(events, mouse)
+            self._update_menu(events, mouse, dt)
         elif self.screen == Screen.SETTINGS:
             self._update_settings(events, mouse)
         elif self.screen == Screen.CALIBRATION:
@@ -430,8 +439,12 @@ class GameApp:
         ]
 
     def _update_menu(
-        self, events: list[pygame.event.Event], mouse: tuple[int, int]
+        self,
+        events: list[pygame.event.Event],
+        mouse: tuple[int, int],
+        dt: float,
     ) -> None:
+        self._update_menu_chase(dt)
         action = self._clicked_with_sound(events, self._menu_buttons(), mouse)
         if action == "play":
             pose = self.camera.snapshot()
@@ -451,6 +464,42 @@ class GameApp:
             self.screen = Screen.SETTINGS
         elif action == "exit":
             self.running = False
+
+    def _reset_menu_chase(self) -> None:
+        self._menu_chase_direction = 1
+        self._menu_chase_x = -_MENU_CHASE_EDGE_X
+        self._menu_chase_wait = 0.0
+        self._menu_chase_elapsed = 0.0
+
+    def _update_menu_chase(self, dt: float) -> None:
+        self._menu_chase_elapsed += max(0.0, dt)
+        if self._menu_chase_wait > 0.0:
+            self._menu_chase_wait = max(0.0, self._menu_chase_wait - dt)
+            if self._menu_chase_wait > 0.0:
+                return
+            self._menu_chase_direction *= -1
+            self._menu_chase_x = (
+                LOGICAL_WIDTH + _MENU_CHASE_EDGE_X
+                if self._menu_chase_direction < 0
+                else -_MENU_CHASE_EDGE_X
+            )
+            return
+
+        self._menu_chase_x += self._menu_chase_direction * _MENU_CHASE_SPEED * dt
+        rat_x = (
+            self._menu_chase_x
+            - self._menu_chase_direction * _MENU_CHASE_GAP
+        )
+        exited_right = (
+            self._menu_chase_direction > 0
+            and rat_x >= LOGICAL_WIDTH + _MENU_CHASE_EDGE_X
+        )
+        exited_left = (
+            self._menu_chase_direction < 0
+            and rat_x <= -_MENU_CHASE_EDGE_X
+        )
+        if exited_right or exited_left:
+            self._menu_chase_wait = _MENU_CHASE_WAIT_SECONDS
 
     def _settings_buttons(self) -> list[Button]:
         return [
@@ -805,17 +854,32 @@ class GameApp:
         logo_rect = self.assets.menu_logo.get_rect(center=(1018, 465))
         self.canvas.blit(self.assets.menu_logo, logo_rect)
 
+        direction = self._menu_chase_direction
+        pipin = (
+            self.assets.home_pipin
+            if direction > 0
+            else self.assets.home_pipin_flipped
+        )
+        rat = (
+            self.assets.home_rat
+            if direction > 0
+            else self.assets.home_rat_flipped
+        )
+        pipin_x = round(self._menu_chase_x)
+        rat_x = round(self._menu_chase_x - direction * _MENU_CHASE_GAP)
+        pipin_bob = round(math.sin(self._menu_chase_elapsed * 11.0) * 3.0)
+        rat_bob = round(math.sin(self._menu_chase_elapsed * 12.0 + 1.2) * 3.0)
+        self.canvas.blit(
+            rat,
+            rat.get_rect(midbottom=(rat_x, 654 + rat_bob)),
+        )
+        self.canvas.blit(
+            pipin,
+            pipin.get_rect(midbottom=(pipin_x, 669 + pipin_bob)),
+        )
+
         tagline = self.assets.menu_tagline
         self.canvas.blit(tagline, tagline.get_rect(center=(640, 650)))
-
-        self.canvas.blit(
-            self.assets.home_rat,
-            self.assets.home_rat.get_rect(midbottom=(343, 654)),
-        )
-        self.canvas.blit(
-            self.assets.home_pipin,
-            self.assets.home_pipin.get_rect(midbottom=(968, 669)),
-        )
 
         for button in self._menu_buttons():
             self._draw_menu_button(button, mouse)
