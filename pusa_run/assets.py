@@ -86,13 +86,17 @@ class GameAssets:
             LOGICAL_SIZE,
         )
         self.title = scale_to_width(_crop_alpha(_load("title.png")), 570)
-        self.menu_pipin = scale_to_height(
-            _crop_alpha(_load("pipin.png")),
-            245,
+        self.menu_logo = scale_to_width(
+            _crop_alpha(_load("pUSArun_logo.png")),
+            225,
         )
-        self.menu_rat = scale_to_height(
-            _crop_alpha(_load("rat.png")),
-            270,
+        self.home_pipin = scale_to_height(
+            _crop_alpha(_load("home_pipin.png")),
+            180,
+        )
+        self.home_rat = scale_to_height(
+            _crop_alpha(_load("home_rat.png")),
+            132,
         )
         self.app_art = _crop_alpha(_load("pUSArun_icon.png"))
         self.app_icon = pygame.transform.smoothscale(self.app_art, (64, 64))

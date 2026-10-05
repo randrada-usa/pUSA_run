@@ -802,16 +802,19 @@ class GameApp:
         title_rect = self.assets.title.get_rect(midtop=(640, 15))
         self.canvas.blit(self.assets.title, title_rect)
 
+        logo_rect = self.assets.menu_logo.get_rect(center=(1018, 465))
+        self.canvas.blit(self.assets.menu_logo, logo_rect)
+
         tagline = self.assets.menu_tagline
         self.canvas.blit(tagline, tagline.get_rect(center=(640, 650)))
 
         self.canvas.blit(
-            self.assets.menu_pipin,
-            self.assets.menu_pipin.get_rect(midbottom=(190, 708)),
+            self.assets.home_rat,
+            self.assets.home_rat.get_rect(midbottom=(343, 654)),
         )
         self.canvas.blit(
-            self.assets.menu_rat,
-            self.assets.menu_rat.get_rect(midbottom=(1088, 710)),
+            self.assets.home_pipin,
+            self.assets.home_pipin.get_rect(midbottom=(968, 669)),
         )
 
         for button in self._menu_buttons():
