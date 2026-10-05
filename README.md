@@ -1,4 +1,7 @@
-# pUSA Run
+<p align="center">
+  <img src="assets/images/pUSArun_icon.png" alt="pUSA Run app icon" height="220">
+  <img src="assets/images/title.png" alt="pUSA Run title mark" height="220">
+</p>
 
 A three-lane endless runner you can play with your body or a keyboard. Move left or right to change lanes, jump over obstacles, and keep Pipin ahead of the rat.
 
