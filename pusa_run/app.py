@@ -454,13 +454,13 @@ class GameApp:
 
     def _settings_buttons(self) -> list[Button]:
         return [
-            Button("<", pygame.Rect(470, 278, 72, 62), "camera_down"),
-            Button(">", pygame.Rect(738, 278, 72, 62), "camera_up"),
+            Button("<", pygame.Rect(470, 229, 72, 62), "camera_down"),
+            Button(">", pygame.Rect(738, 229, 72, 62), "camera_up"),
             Button(
-                "CAMERA WINDOW", pygame.Rect(440, 374, 400, 65), "camera_window"
+                "CAMERA WINDOW", pygame.Rect(490, 372, 300, 76), "camera_window"
             ),
-            Button("RECALIBRATE", pygame.Rect(440, 459, 400, 65), "recalibrate"),
-            Button("BACK", pygame.Rect(490, 565, 300, 65), "back"),
+            Button("RECALIBRATE", pygame.Rect(490, 466, 300, 76), "recalibrate"),
+            Button("BACK", pygame.Rect(520, 590, 240, 76), "back"),
         ]
 
     def _update_settings(
@@ -566,11 +566,23 @@ class GameApp:
         self.store.save(self.preferences)
         self._start_run()
 
-    def _start_run(self) -> None:
+    def _reset_run_state(self) -> None:
         self.world = RunnerWorld()
         self._crossfading_to_fast = False
+        self._resume_track = None
+        self._resume_pos_s = 0.0
         self._rat_squeak_timer = _RAT_SQUEAK_BY_HEARTS[3][0]
+
+    def _start_run(self) -> None:
+        self._reset_run_state()
         self.screen = Screen.PLAYING
+
+    def _restart_run(self) -> None:
+        self._start_run()
+
+    def _return_to_main_menu(self) -> None:
+        self._reset_run_state()
+        self.screen = Screen.MENU
 
     def _update_playing(
         self,
@@ -608,10 +620,10 @@ class GameApp:
 
     def _pause_buttons(self) -> list[Button]:
         return [
-            Button("RESUME", pygame.Rect(480, 310, 320, 66), "resume"),
-            Button("RECALIBRATE", pygame.Rect(480, 396, 320, 66), "recalibrate"),
-            Button("SETTINGS", pygame.Rect(480, 482, 320, 66), "settings"),
-            Button("MAIN MENU", pygame.Rect(480, 568, 320, 66), "menu"),
+            Button("RESTART", pygame.Rect(480, 310, 320, 66), "restart"),
+            Button("RESUME", pygame.Rect(480, 422, 320, 66), "resume"),
+            Button("SETTINGS", pygame.Rect(480, 508, 320, 66), "settings"),
+            Button("MAIN MENU", pygame.Rect(480, 594, 320, 66), "menu"),
         ]
 
     def _update_pause(
@@ -624,20 +636,17 @@ class GameApp:
         action = self._clicked_with_sound(events, self._pause_buttons(), mouse)
         if action == "resume":
             self.screen = Screen.PLAYING
-        elif action == "recalibrate":
-            self.calibration_destination = Screen.PAUSED
-            self.calibration_return_screen = Screen.PAUSED
-            self.camera.recalibrate()
-            self.screen = Screen.CALIBRATION
+        elif action == "restart":
+            self._restart_run()
         elif action == "settings":
             self.previous_screen = Screen.PAUSED
             self.screen = Screen.SETTINGS
         elif action == "menu":
-            self.screen = Screen.MENU
+            self._return_to_main_menu()
 
     def _game_over_buttons(self) -> list[Button]:
         return [
-            Button("PLAY AGAIN", pygame.Rect(470, 480, 340, 70), "retry"),
+            Button("RESTART", pygame.Rect(470, 480, 340, 70), "restart"),
             Button("MAIN MENU", pygame.Rect(470, 570, 340, 70), "menu"),
         ]
 
@@ -645,10 +654,10 @@ class GameApp:
         self, events: list[pygame.event.Event], mouse: tuple[int, int]
     ) -> None:
         action = self._clicked_with_sound(events, self._game_over_buttons(), mouse)
-        if action == "retry":
-            self._start_run()
+        if action == "restart":
+            self._restart_run()
         elif action == "menu":
-            self.screen = Screen.MENU
+            self._return_to_main_menu()
 
     @staticmethod
     def _clicked(
@@ -848,32 +857,36 @@ class GameApp:
     def _draw_settings(
         self, pose: PoseSnapshot, mouse: tuple[int, int]
     ) -> None:
-        self._draw_background()
+        if self.previous_screen == Screen.PAUSED:
+            draw_world(self.canvas, self.world, "", self.assets)
+        else:
+            self.canvas.blit(self.assets.main_background, (0, 0))
+        overlay = pygame.Surface(LOGICAL_SIZE, pygame.SRCALPHA)
+        overlay.fill((20, 18, 28, 205))
+        self.canvas.blit(overlay, (0, 0))
         heading = self.font_large.render("SETTINGS", True, COLORS["cream"])
-        self.canvas.blit(heading, heading.get_rect(center=(640, 112)))
-        panel = pygame.Rect(380, 190, 520, 470)
-        pygame.draw.rect(self.canvas, COLORS["dark"], panel, border_radius=18)
+        self.canvas.blit(heading, heading.get_rect(center=(640, 100)))
         label = self.font_medium.render("Camera", True, COLORS["white"])
-        self.canvas.blit(label, label.get_rect(center=(640, 239)))
+        self.canvas.blit(label, label.get_rect(center=(640, 190)))
         index = self.font_medium.render(
             str(self.preferences.camera_index), True, COLORS["gold"]
         )
-        self.canvas.blit(index, index.get_rect(center=(640, 309)))
+        self.canvas.blit(index, index.get_rect(center=(640, 260)))
         state = "ON" if self.preferences.show_camera else "OFF"
         detail_text = f"Separate camera window: {state}"
-        detail = fitted_ui_font(detail_text, panel.width - 36, 18).render(
+        detail = fitted_ui_font(detail_text, 520, 18).render(
             detail_text, True, COLORS["cream"]
         )
-        self.canvas.blit(detail, detail.get_rect(center=(640, 354)))
+        self.canvas.blit(detail, detail.get_rect(center=(640, 330)))
         for button in self._settings_buttons():
-            button.draw(self.canvas, self.font_small, mouse)
+            self._draw_screen_button(button, mouse)
         if pose.camera_error:
             error = self.font_small.render(
                 "Camera unavailable - keyboard remains active",
                 True,
                 (255, 170, 170),
             )
-            self.canvas.blit(error, error.get_rect(center=(640, 545)))
+            self.canvas.blit(error, error.get_rect(center=(640, 700)))
 
     def _draw_calibration(
         self, pose: PoseSnapshot, mouse: tuple[int, int]
@@ -1002,7 +1015,28 @@ class GameApp:
         heading = self.font_large.render(title, True, COLORS["cream"])
         self.canvas.blit(heading, heading.get_rect(center=(640, 210)))
         for button in buttons:
-            button.draw(self.canvas, self.font_small, mouse)
+            self._draw_screen_button(button, mouse)
+
+    def _draw_screen_button(
+        self,
+        button: Button,
+        mouse: tuple[int, int],
+    ) -> None:
+        hovered = button.rect.collidepoint(mouse)
+        pressed = hovered and pygame.mouse.get_pressed(num_buttons=3)[0]
+        image = self.assets.screen_buttons[button.action]
+        center = button.rect.center
+
+        if pressed:
+            image = pygame.transform.scale_by(image, 0.97)
+            image.fill((18, 18, 18, 0), special_flags=pygame.BLEND_RGB_SUB)
+            center = (center[0], center[1] + 3)
+        elif hovered:
+            image = pygame.transform.scale_by(image, 1.04)
+            image.fill((16, 16, 16, 0), special_flags=pygame.BLEND_RGB_ADD)
+            center = (center[0], center[1] - 1)
+
+        self.canvas.blit(image, image.get_rect(center=center))
 
     def _draw_game_over(self, mouse: tuple[int, int]) -> None:
         overlay = pygame.Surface(LOGICAL_SIZE, pygame.SRCALPHA)
@@ -1020,7 +1054,7 @@ class GameApp:
             )
             self.canvas.blit(high, high.get_rect(center=(640, 390)))
         for button in self._game_over_buttons():
-            button.draw(self.canvas, self.font_small, mouse)
+            self._draw_screen_button(button, mouse)
 
     def _draw_camera_badge(self, pose: PoseSnapshot) -> None:
         if pose.camera_error:

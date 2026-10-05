@@ -221,3 +221,21 @@ class GameAssets:
             _crop_alpha(_load_button("exit_icon_left.png")),
             64,
         )
+
+        self.screen_buttons = {
+            action: scale_to_height(
+                _crop_alpha(_load_button(filename)),
+                height,
+            )
+            for action, filename, height in (
+                ("camera_down", "arrow_left.png", 62),
+                ("camera_up", "arrow_right.png", 62),
+                ("back", "back.png", 76),
+                ("camera_window", "camera_window.png", 76),
+                ("menu", "main_menu.png", 76),
+                ("recalibrate", "recalibrate.png", 76),
+                ("restart", "restart.png", 76),
+                ("resume", "resume.png", 76),
+                ("settings", "settings.png", 76),
+            )
+        }

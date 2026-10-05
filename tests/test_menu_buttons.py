@@ -8,7 +8,8 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
 
-from pusa_run.app import Button, GameApp, Screen
+from pusa_run.app import Button, GameApp, Screen, _MusicTrack
+from pusa_run.gameplay import RunnerWorld
 from pusa_run.pose_controller import CalibrationStatus, PoseSnapshot
 
 
@@ -76,6 +77,52 @@ class MenuButtonTests(unittest.TestCase):
                     escape, PoseSnapshot(calibration=status), (-1, -1)
                 )
                 self.assertEqual(app.screen, source)
+
+    def test_pause_menu_uses_restart_instead_of_recalibrate(self) -> None:
+        actions = [button.action for button in GameApp._pause_buttons(None)]
+
+        self.assertEqual(actions, ["restart", "resume", "settings", "menu"])
+
+    def test_restart_resets_run_and_does_not_resume_old_music_position(self) -> None:
+        app = GameApp.__new__(GameApp)
+        old_world = RunnerWorld(seed=1)
+        old_world.elapsed = 42.0
+        app.world = old_world
+        app.screen = Screen.PAUSED
+        app._resume_track = _MusicTrack.RADAHALL_FAST
+        app._resume_pos_s = 37.5
+        app._crossfading_to_fast = True
+        app._rat_squeak_timer = 0.1
+
+        app._restart_run()
+
+        self.assertIsNot(app.world, old_world)
+        self.assertEqual(app.world.elapsed, 0)
+        self.assertEqual(app.screen, Screen.PLAYING)
+        self.assertIsNone(app._resume_track)
+        self.assertEqual(app._resume_pos_s, 0)
+        self.assertFalse(app._crossfading_to_fast)
+
+    def test_main_menu_resets_run_before_showing_menu(self) -> None:
+        app = GameApp.__new__(GameApp)
+        old_world = RunnerWorld(seed=1)
+        old_world.elapsed = 42.0
+        old_world.distance = 900.0
+        app.world = old_world
+        app.screen = Screen.PAUSED
+        app._resume_track = _MusicTrack.RADAHALL_FAST
+        app._resume_pos_s = 37.5
+        app._crossfading_to_fast = True
+        app._rat_squeak_timer = 0.1
+
+        app._return_to_main_menu()
+
+        self.assertIsNot(app.world, old_world)
+        self.assertEqual(app.world.elapsed, 0)
+        self.assertEqual(app.world.distance, 0)
+        self.assertEqual(app.screen, Screen.MENU)
+        self.assertIsNone(app._resume_track)
+        self.assertEqual(app._resume_pos_s, 0)
 
 
 if __name__ == "__main__":
