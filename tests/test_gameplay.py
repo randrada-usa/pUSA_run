@@ -4,17 +4,20 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
 
 from pusa_run.actions import Action
+from pusa_run.constants import PLAYER_Y
 from pusa_run.difficulty import difficulty_at
 from pusa_run.gameplay import (
     ObjectKind,
     RunnerWorld,
     TrackObject,
+    _draw_player,
     _hurt_flash_sprite,
     _rat_dodge_offset,
 )
@@ -112,6 +115,40 @@ class PlayerTests(unittest.TestCase):
         world._handle_interactions(collision_grace=False)
         self.assertEqual(world.player.hearts, 3)
         self.assertEqual(world.player.shield_timer, 0)
+        self.assertEqual(world.player.shield_flash, 0.45)
+        self.assertEqual(world.player.hurt_flash, 0)
+
+    def test_shield_flash_expires_after_block(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.player.shield_timer = 8
+
+        world.player.take_damage()
+        world.player.update(0.2)
+        self.assertAlmostEqual(world.player.shield_flash, 0.25)
+
+        world.player.update(0.3)
+        self.assertEqual(world.player.shield_flash, 0)
+
+    def test_shield_block_draws_pipin_and_the_flashing_shield(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.player.damage_timer = 0.7
+        world.player.shield_flash = 0.45
+        pipin = pygame.Surface((10, 10), pygame.SRCALPHA)
+        pipin.fill((240, 120, 40, 255))
+        shield = pygame.Surface((30, 30), pygame.SRCALPHA)
+        shield.fill((80, 210, 240, 255))
+        assets = SimpleNamespace(
+            player_jump=pipin,
+            player_run_frames=[pipin],
+            shield=shield,
+        )
+        canvas = pygame.Surface((1280, 720), pygame.SRCALPHA)
+
+        _draw_player(canvas, world.player, elapsed=0.0, assets=assets)
+
+        x = int(world.player.x)
+        self.assertEqual(canvas.get_at((x, PLAYER_Y + 45))[:3], (240, 120, 40))
+        self.assertEqual(canvas.get_at((x, PLAYER_Y + 30))[:3], (80, 210, 240))
 
     def test_damage_is_not_repeated_during_invulnerability(self) -> None:
         world = RunnerWorld(seed=1)
@@ -175,6 +212,60 @@ class PlayerTests(unittest.TestCase):
         world.objects = [TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92)]
         world._handle_interactions(collision_grace=False)
         self.assertEqual(world.hits_taken, 0)
+
+    def test_table_edge_hits_after_an_early_jump_landing(self) -> None:
+        table_world = RunnerWorld(seed=1)
+        table_world.objects = [
+            TrackObject(
+                ObjectKind.OBSTACLE,
+                table_world.player.lane,
+                PLAYER_Y + 70,
+                92,
+                variant=1,
+            )
+        ]
+        table_world._handle_interactions(collision_grace=False)
+        self.assertEqual(table_world.hits_taken, 1)
+
+        books_world = RunnerWorld(seed=1)
+        books_world.objects = [
+            TrackObject(
+                ObjectKind.OBSTACLE,
+                books_world.player.lane,
+                PLAYER_Y + 70,
+                92,
+                variant=0,
+            )
+        ]
+        books_world._handle_interactions(collision_grace=False)
+        self.assertEqual(books_world.hits_taken, 0)
+
+    def test_books_edge_has_a_slightly_larger_hitbox(self) -> None:
+        books_world = RunnerWorld(seed=1)
+        books_world.objects = [
+            TrackObject(
+                ObjectKind.OBSTACLE,
+                books_world.player.lane,
+                PLAYER_Y + 66,
+                92,
+                variant=0,
+            )
+        ]
+        books_world._handle_interactions(collision_grace=False)
+        self.assertEqual(books_world.hits_taken, 1)
+
+        trash_world = RunnerWorld(seed=1)
+        trash_world.objects = [
+            TrackObject(
+                ObjectKind.OBSTACLE,
+                trash_world.player.lane,
+                PLAYER_Y + 66,
+                92,
+                variant=2,
+            )
+        ]
+        trash_world._handle_interactions(collision_grace=False)
+        self.assertEqual(trash_world.hits_taken, 0)
 
     def test_cat_food_pickup_is_recorded_once(self) -> None:
         world = RunnerWorld(seed=1)

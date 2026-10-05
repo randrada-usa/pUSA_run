@@ -26,6 +26,11 @@ if TYPE_CHECKING:
 RAT_BASE_Y = 753.0
 RAT_DISTANCE_STEP = 38.0
 RAT_TRANSITION_SPEED = 140.0
+OBSTACLE_COLLISION_DISTANCE = 58.0
+BOOKS_COLLISION_DISTANCE = 68.0
+TABLE_COLLISION_DISTANCE = 76.0
+BOOKS_VARIANT = 0
+TABLE_VARIANT = 1
 
 
 class ObjectKind(str, Enum):
@@ -61,6 +66,7 @@ class Player:
     jump_velocity: float = 0.0
     hearts: int = MAX_HEARTS
     shield_timer: float = 0.0
+    shield_flash: float = 0.0
     damage_timer: float = 0.0
     hurt_flash: float = 0.0
 
@@ -94,6 +100,7 @@ class Player:
                 self.jump_velocity = 0.0
 
         self.shield_timer = max(0.0, self.shield_timer - dt)
+        self.shield_flash = max(0.0, self.shield_flash - dt)
         self.damage_timer = max(0.0, self.damage_timer - dt)
         self.hurt_flash = max(0.0, self.hurt_flash - dt)
 
@@ -102,6 +109,7 @@ class Player:
             return False
         if self.shield_timer > 0.0:
             self.shield_timer = 0.0
+            self.shield_flash = 0.45
             self.damage_timer = 0.7
             return False
         self.hearts = max(0, self.hearts - 1)
@@ -226,7 +234,17 @@ class RunnerWorld:
                 continue
             vertical_distance = abs(item.y - PLAYER_Y)
             if item.kind == ObjectKind.OBSTACLE:
-                if vertical_distance <= 58 and not self.player.airborne and not collision_grace:
+                if item.variant == TABLE_VARIANT:
+                    collision_distance = TABLE_COLLISION_DISTANCE
+                elif item.variant == BOOKS_VARIANT:
+                    collision_distance = BOOKS_COLLISION_DISTANCE
+                else:
+                    collision_distance = OBSTACLE_COLLISION_DISTANCE
+                if (
+                    vertical_distance <= collision_distance
+                    and not self.player.airborne
+                    and not collision_grace
+                ):
                     consumed_shield = self.player.shield_timer > 0.0
                     damaged = self.player.take_damage()
                     if damaged:
@@ -319,9 +337,12 @@ def _draw_player(
     x = int(player.x)
     y = int(PLAYER_Y - player.jump_height)
 
-    blink = player.damage_timer > 0 and int(player.damage_timer * 10) % 2 == 0
+    blink = player.hurt_flash > 0 and int(player.hurt_flash * 10) % 2 == 0
     if blink:
         return
+    shield_visible = player.shield_timer > 0 or (
+        player.shield_flash > 0 and int(player.shield_flash * 20) % 2 == 1
+    )
     if assets is not None:
         if player.jump_height > 1.0:
             sprite = assets.player_jump
@@ -329,7 +350,7 @@ def _draw_player(
             frame_index = int(elapsed * 8.0) % len(assets.player_run_frames)
             sprite = assets.player_run_frames[frame_index]
         sprite_rect = sprite.get_rect(midbottom=(x, y + 50))
-        if player.shield_timer > 0:
+        if shield_visible:
             shield_rect = assets.shield.get_rect(center=sprite_rect.center)
             surface.blit(assets.shield, shield_rect)
         surface.blit(sprite, sprite_rect)
@@ -351,7 +372,7 @@ def _draw_player(
     pygame.draw.line(surface, COLORS["brown"], (x - 6, y - 20), (x - 19, y - 17), 2)
     pygame.draw.line(surface, COLORS["brown"], (x + 6, y - 20), (x + 19, y - 17), 2)
 
-    if player.shield_timer > 0:
+    if shield_visible:
         radius = 61 + int(math.sin(elapsed * 8) * 3)
         pygame.draw.circle(surface, (93, 210, 236), (x, y - 10), radius, 4)
 
