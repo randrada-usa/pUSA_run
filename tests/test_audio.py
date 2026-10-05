@@ -63,6 +63,7 @@ class AudioBehaviorTests(unittest.TestCase):
     def test_hit_sound_plays_once_and_clears_counter(self) -> None:
         app = GameApp.__new__(GameApp)
         app._hit_sound = Mock()
+        app._shield_sound = Mock()
         app.world = RunnerWorld(seed=1)
         app.world.hits_taken = 1
 
@@ -71,6 +72,19 @@ class AudioBehaviorTests(unittest.TestCase):
 
         app._hit_sound.play.assert_called_once_with()
         self.assertEqual(app.world.hits_taken, 0)
+
+    def test_shield_block_plays_its_own_sound_not_the_hit_sound(self) -> None:
+        app = GameApp.__new__(GameApp)
+        app._hit_sound = Mock()
+        app._shield_sound = Mock()
+        app.world = RunnerWorld(seed=1)
+        app.world.shield_blocks = 1
+
+        app._play_hit_sound()
+
+        app._shield_sound.play.assert_called_once_with()
+        app._hit_sound.play.assert_not_called()
+        self.assertEqual(app.world.shield_blocks, 0)
 
     def _squeak_app(self, hearts: int, timer: float) -> GameApp:
         app = GameApp.__new__(GameApp)

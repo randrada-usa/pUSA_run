@@ -119,6 +119,7 @@ class RunnerWorld:
         self.distance = 0.0
         self.collectible_score = 0
         self.hits_taken = 0  
+        self.shield_blocks = 0 
         self.pickups: list[ObjectKind] = []  
         self.spawn_timer = 1.35
         self.scroll_offset = 0.0
@@ -231,6 +232,8 @@ class RunnerWorld:
                     if damaged:
                         self.hit_slow_timer = 0.8
                         self.hits_taken += 1
+                    elif consumed_shield and self.player.shield_timer == 0.0:
+                        self.shield_blocks += 1
                     if damaged or consumed_shield:
                         item.collected = True
             elif vertical_distance <= 62:
@@ -298,7 +301,6 @@ def _draw_player_shadow(
     assets: GameAssets | None,
 ) -> None:
     x = int(player.x)
-    # Pull the shadow slightly behind the supplied run frames' contact feet.
     ground_y = PLAYER_Y + (40 if assets is not None else 48)
     shadow_width = max(34, int(86 - player.jump_height * 0.18))
     pygame.draw.ellipse(

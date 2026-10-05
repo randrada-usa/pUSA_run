@@ -148,12 +148,27 @@ class PlayerTests(unittest.TestCase):
         world._handle_interactions(collision_grace=False)
         self.assertEqual(world.hits_taken, 1)
 
-    def test_shielded_or_dodged_obstacle_is_not_a_hit(self) -> None:
+    def test_shield_absorbs_one_obstacle_and_records_a_block(self) -> None:
         world = RunnerWorld(seed=1)
         world.player.shield_timer = 5.0
-        world.objects = [TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92)]
+        world.objects = [
+            TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92),
+            TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92),
+        ]
         world._handle_interactions(collision_grace=False)
         self.assertEqual(world.hits_taken, 0)
+        self.assertEqual(world.shield_blocks, 1)
+        self.assertEqual(world.player.hearts, 3)
+
+    def test_obstacle_during_iframes_is_not_a_shield_block(self) -> None:
+        world = RunnerWorld(seed=1)
+        world.player.shield_timer = 5.0
+        world.player.damage_timer = 0.5
+        world.objects = [TrackObject(ObjectKind.OBSTACLE, world.player.lane, 570, 92)]
+        world._handle_interactions(collision_grace=False)
+        self.assertEqual(world.shield_blocks, 0)
+
+    def test_dodged_obstacle_is_not_a_hit(self) -> None:
 
         world = RunnerWorld(seed=1)
         world.player.jump_height = 100.0

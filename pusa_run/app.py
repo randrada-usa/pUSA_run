@@ -118,6 +118,7 @@ class GameApp:
         self._catfood_sound = None
         self._fish_sound = None
         self._hit_sound = None
+        self._shield_sound = None
         self._rat_sound = None
         self._rat_channel = None
         self._rat_squeak_timer = _RAT_SQUEAK_BY_HEARTS[3][0]
@@ -171,6 +172,13 @@ class GameApp:
                 self._hit_sound.set_volume(self.preferences.sfx_volume)
             except (pygame.error, FileNotFoundError):
                 self._hit_sound = None
+            try:
+                self._shield_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "sound", "shield_block.wav"))
+                )
+                self._shield_sound.set_volume(self.preferences.sfx_volume)
+            except (pygame.error, FileNotFoundError):
+                self._shield_sound = None
             try:
                 self._rat_sound = pygame.mixer.Sound(
                     str(resource_path("assets", "sound", "rat_threat.wav"))
@@ -692,8 +700,11 @@ class GameApp:
 
     def _play_hit_sound(self) -> None:
         hits, self.world.hits_taken = self.world.hits_taken, 0
+        blocks, self.world.shield_blocks = self.world.shield_blocks, 0
         if hits and self._hit_sound is not None:
             self._hit_sound.play()
+        elif blocks and self._shield_sound is not None:
+            self._shield_sound.play()
 
     def _play_pickup_sounds(self) -> None:
         pickups, self.world.pickups = self.world.pickups, []
