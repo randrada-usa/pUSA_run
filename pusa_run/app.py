@@ -16,6 +16,7 @@ from .assets import GameAssets
 from .constants import COLORS, FPS, GAME_TITLE, LOGICAL_HEIGHT, LOGICAL_SIZE, LOGICAL_WIDTH, resource_path
 from .fonts import fitted_ui_font, ui_font
 from .gameplay import ObjectKind, RunnerWorld, TrackObject, draw_world
+from .intro_video import IntroVideo
 from .pose_controller import CalibrationStatus, PoseController, PoseSnapshot
 from .save_data import Preferences, SaveStore
 
@@ -24,6 +25,7 @@ class Screen(str, Enum):
     MENU = "menu"
     CALIBRATION = "calibration"
     TUTORIAL = "tutorial"
+    INTRO = "intro"
     PLAYING = "playing"
     PAUSED = "paused"
     SETTINGS = "settings"
@@ -49,6 +51,8 @@ _MENU_CHASE_SPEED = 280.0
 _MENU_CHASE_GAP = 160.0
 _MENU_CHASE_WAIT_SECONDS = 3.5
 _MENU_CHASE_EDGE_X = 100.0
+_INTRO_AUDIO_FADE_MS = 500
+_GAMEPLAY_REVEAL_SECONDS = 0.45
 
 # Rat squeak by remaining hearts: (seconds between squeaks, volume 0-1).
 # The rat gets closer as hearts drop, so squeaks get faster and louder.
@@ -127,6 +131,11 @@ class GameApp:
         self._shield_sound = None
         self._rat_sound = None
         self._rat_channel = None
+        self._intro_sound = None
+        self._intro_channel = None
+        self._intro_video: IntroVideo | None = None
+        self._intro_audio_fading = False
+        self._gameplay_fade_timer = 0.0
         self._rat_squeak_timer = _RAT_SQUEAK_BY_HEARTS[3][0]
         if self._audio_available:
             try:
@@ -196,6 +205,12 @@ class GameApp:
             except (pygame.error, FileNotFoundError):
                 self._rat_sound = None
                 self._rat_channel = None
+            try:
+                self._intro_sound = pygame.mixer.Sound(
+                    str(resource_path("assets", "start_vid_audio.ogg"))
+                )
+            except (pygame.error, FileNotFoundError):
+                self._intro_sound = None
             pygame.mixer.music.set_volume(self.preferences.music_volume)
             pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
@@ -268,6 +283,10 @@ class GameApp:
                 self._load_and_play(_MusicTrack.BG_THEME)
             return
 
+        # Intro video/audio are started together by _start_intro.
+        if current == Screen.INTRO:
+            return
+
         # entering gameplay
         if current in (Screen.PLAYING, Screen.TUTORIAL):
             if prev == Screen.PAUSED and self._resume_track is not None:
@@ -283,7 +302,15 @@ class GameApp:
                 self._music_playing = True
                 return
             # fresh run or tutorial
-            self._load_and_play(_MusicTrack.RADAHALL_NORMAL)
+            fade_in_ms = (
+                round(_GAMEPLAY_REVEAL_SECONDS * 1000)
+                if prev == Screen.INTRO
+                else 0
+            )
+            self._load_and_play(
+                _MusicTrack.RADAHALL_NORMAL,
+                fade_in_ms=fade_in_ms,
+            )
             return
 
         # entering pause: switch to menu music, remembering where gameplay music was
@@ -368,6 +395,7 @@ class GameApp:
                 self._present()
             return 0
         finally:
+            self._release_intro_video()
             self.preferences.fullscreen = self.fullscreen
             self.store.save(self.preferences)
             self.camera.stop()
@@ -424,6 +452,8 @@ class GameApp:
             self._update_calibration(events, pose, mouse)
         elif self.screen == Screen.TUTORIAL:
             self._update_tutorial(events, actions, dt)
+        elif self.screen == Screen.INTRO:
+            self._update_intro(events, dt)
         elif self.screen == Screen.PLAYING:
             self._update_playing(events, actions, pose, dt)
         elif self.screen == Screen.PAUSED:
@@ -564,12 +594,15 @@ class GameApp:
             self._after_calibration()
 
     def _after_calibration(self) -> None:
+        if self.calibration_return_screen == Screen.SETTINGS:
+            self.screen = Screen.SETTINGS
+            return
         if self.calibration_destination == Screen.PAUSED:
             self.screen = Screen.PAUSED
         elif not self.preferences.tutorial_complete:
             self._start_tutorial()
         else:
-            self._start_run()
+            self._start_intro()
 
     def _start_tutorial(self) -> None:
         self.tutorial_index = 0
@@ -613,18 +646,78 @@ class GameApp:
     def _finish_tutorial(self) -> None:
         self.preferences.tutorial_complete = True
         self.store.save(self.preferences)
-        self._start_run()
+        self._start_intro()
 
     def _reset_run_state(self) -> None:
         self.world = RunnerWorld()
         self._crossfading_to_fast = False
         self._resume_track = None
         self._resume_pos_s = 0.0
+        self._gameplay_fade_timer = 0.0
         self._rat_squeak_timer = _RAT_SQUEAK_BY_HEARTS[3][0]
 
     def _start_run(self) -> None:
         self._reset_run_state()
         self.screen = Screen.PLAYING
+
+    def _start_intro(self) -> None:
+        self._release_intro_video()
+        intro = IntroVideo(resource_path("assets", "start_vid.mp4"))
+        if not intro.available:
+            intro.release()
+            self._start_run()
+            return
+
+        self._intro_video = intro
+        self._intro_audio_fading = False
+        if self._audio_available:
+            if self._music_playing:
+                pygame.mixer.music.fadeout(_INTRO_AUDIO_FADE_MS)
+                self._music_playing = False
+            if self._intro_sound is not None:
+                self._intro_channel = self._intro_sound.play(
+                    fade_ms=_INTRO_AUDIO_FADE_MS
+                )
+                if self._intro_channel is not None:
+                    self._intro_channel.set_volume(self.preferences.music_volume)
+        self.screen = Screen.INTRO
+
+    def _update_intro(
+        self,
+        events: list[pygame.event.Event],
+        dt: float,
+    ) -> None:
+        skip = any(
+            event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE
+            for event in events
+        )
+        if self._intro_video is None or skip:
+            self._finish_intro()
+            return
+
+        finished = self._intro_video.update(dt)
+        if (
+            self._intro_video.fade_out_started
+            and not self._intro_audio_fading
+            and self._intro_channel is not None
+        ):
+            self._intro_channel.fadeout(_INTRO_AUDIO_FADE_MS)
+            self._intro_audio_fading = True
+        if finished:
+            self._finish_intro()
+
+    def _finish_intro(self) -> None:
+        if self._intro_channel is not None:
+            self._intro_channel.stop()
+            self._intro_channel = None
+        self._release_intro_video()
+        self._start_run()
+        self._gameplay_fade_timer = _GAMEPLAY_REVEAL_SECONDS
+
+    def _release_intro_video(self) -> None:
+        if self._intro_video is not None:
+            self._intro_video.release()
+            self._intro_video = None
 
     def _restart_run(self) -> None:
         self._start_run()
@@ -640,6 +733,10 @@ class GameApp:
         pose: PoseSnapshot,
         dt: float,
     ) -> None:
+        self._gameplay_fade_timer = max(
+            0.0,
+            self._gameplay_fade_timer - dt,
+        )
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.screen = Screen.PAUSED
@@ -791,6 +888,11 @@ class GameApp:
             self._draw_calibration(pose, mouse)
         elif self.screen == Screen.TUTORIAL:
             self._draw_tutorial()
+        elif self.screen == Screen.INTRO:
+            if self._intro_video is None:
+                self.canvas.fill((0, 0, 0))
+            else:
+                self._intro_video.draw(self.canvas)
         elif self.screen == Screen.PLAYING:
             draw_world(
                 self.canvas,
@@ -798,6 +900,15 @@ class GameApp:
                 self._tracking_warning(pose),
                 self.assets,
             )
+            if self._gameplay_fade_timer > 0.0:
+                overlay = pygame.Surface(LOGICAL_SIZE, pygame.SRCALPHA)
+                alpha = round(
+                    255
+                    * self._gameplay_fade_timer
+                    / _GAMEPLAY_REVEAL_SECONDS
+                )
+                overlay.fill((0, 0, 0, alpha))
+                self.canvas.blit(overlay, (0, 0))
         elif self.screen == Screen.PAUSED:
             draw_world(self.canvas, self.world, "", self.assets)
             self._draw_overlay("PAUSED", self._pause_buttons(), mouse)

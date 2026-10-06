@@ -13,7 +13,9 @@ os.environ["APPDATA"] = str(PROJECT_ROOT / "tmp" / "smoke-profile")
 import pygame
 
 from pusa_run.app import GameApp, Screen
+from pusa_run.constants import resource_path
 from pusa_run.gameplay import ObjectKind, RunnerWorld, TrackObject, draw_world
+from pusa_run.intro_video import IntroVideo
 from pusa_run.pose_controller import PoseSnapshot
 
 
@@ -44,6 +46,14 @@ def main() -> None:
         app._menu_chase_elapsed = 2.0
         app._draw_menu((-1, -1))
         pygame.image.save(app.canvas, output / "menu_reverse.png")
+
+        intro = IntroVideo(resource_path("assets", "start_vid.mp4"))
+        try:
+            intro.update(1.0)
+            intro.draw(app.canvas)
+            pygame.image.save(app.canvas, output / "intro.png")
+        finally:
+            intro.release()
 
         world = RunnerWorld(seed=12)
         world.elapsed = 18.0
