@@ -20,11 +20,11 @@ def difficulty_at(elapsed: float) -> DifficultySnapshot:
     introduction = min(1.0, elapsed / 20.0)
     first_minute_tiers = min(tier, 6)
     later_tiers = max(0, tier - 6)
-    scroll_speed = 245.0 + 20.0 * introduction + 50.0 * first_minute_tiers
+    scroll_speed = 245.0 + 20.0 * introduction + 30.0 * first_minute_tiers
     scroll_speed += 10.0 * later_tiers
     scroll_speed = min(scroll_speed, 745.0)
-    spawn_interval = max(0.78, 1.75 - 0.15 * first_minute_tiers - 0.012 * later_tiers)
-    double_chance = min(0.75, max(0.0, (first_minute_tiers - 1) * 0.12) + 0.01 * later_tiers)
+    spawn_interval = max(0.78, 1.75 - 0.08 * first_minute_tiers - 0.012 * later_tiers)
+    double_chance = min(0.75, max(0.0, (first_minute_tiers - 1) * 0.07) + 0.01 * later_tiers)
     return DifficultySnapshot(
         elapsed=elapsed,
         tier=tier,
